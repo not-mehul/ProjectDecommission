@@ -234,6 +234,49 @@ class VerkadaInternalAPIClient:
         except (HTTPError, JSONDecodeError) as e:
             logger.error(f"Failed to escalate to Access System Admin: {e}")
 
+    def get_object(
+        self,
+        object_type: str,
+        error_signature: str,
+        mapping_func: Callable[[Dict], Dict],
+    ) -> List[Dict[str, Any]]:
+        """
+        Get a list of objects of a given type.
+        """
+        match object_type:
+            case "intercoms":
+                subdomain = "api"
+                path = f"vinter/v1/user/organization/{self.org_id}/device"
+            case _:
+                raise ValueError(f"Unknown device type: {object_type}")
+
+        url = (
+            f"https://{subdomain}.command.verkada.com/__v/{self.org_short_name}/{path}"
+        )
+        headers = self._get_headers()
+        # params = {"page_size": 200}
+        logger.debug(f"Fetching data from {url}...")
+        logger.info(f"Finding {object_type}...")
+        response = self.session.get(url, headers=headers)
+
+        if response.status_code == 400:
+            if error_signature in response.text:
+                logger.info(f"Found 0 {object_type}.")
+                return []
+
+        try:
+            response.raise_for_status()
+            data = response.json()
+            results = [mapping_func(item) for item in data[object_type]]
+            logger.info(f"Retrieved {len(results)} {object_type}s")
+            return results
+        except (HTTPError, JSONDecodeError) as e:
+            logger.error(f"Failed to fetch {object_type}: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error fetching {object_type}: {e}")
+            return []
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -254,5 +297,5 @@ internal_client = VerkadaInternalAPIClient(
 
 # Login to internal API
 internal_client.login()
-internal_client.create_external_api_key()
-internal_client.set_access_system_admin()
+mapping_func = lambda x: {"id": x["deviceId"], "name": x["name"]}
+intercoms = internal_client.get_object("intercoms", "", mapping_func)
