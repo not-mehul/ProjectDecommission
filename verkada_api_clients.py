@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Union
+from zipfile import error
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -8,7 +9,7 @@ from requests.exceptions import HTTPError, JSONDecodeError
 from requests.models import Response
 from urllib3.util.retry import Retry
 
-from verkada_utilities import get_env_var
+from verkada_utilities import get_env_var, sanitize_list
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +20,6 @@ class VerkadaInternalAPIClient:
     """
 
     BASE_URL_PROVISION = "https://vprovision.command.verkada.com/__v/"
-    BASE_URL_RESPONSE = "https://vproresponse.command.verkada.com/__v/"
-    BASE_URL_SENSOR = "https://vsensor.command.verkada.com/__v/"
-    BASE_URL_INTERCOM = "https://api.command.verkada.com/__v/"
-    BASE_URL_MAILROOM = "https://vdoorman.command.verkada.com/__v/"
 
     def __init__(self, email: str, password: str, org_short_name: str, shard: str):
         self.email = email
@@ -237,8 +234,6 @@ class VerkadaInternalAPIClient:
     def get_object(
         self,
         object_type: str,
-        error_signature: str,
-        mapping_func: Callable[[Dict], Dict],
     ) -> List[Dict[str, Any]]:
         """
         Get a list of objects of a given type.
@@ -247,6 +242,36 @@ class VerkadaInternalAPIClient:
             case "intercoms":
                 subdomain = "api"
                 path = f"vinter/v1/user/organization/{self.org_id}/device"
+                mapping_func = lambda x: {
+                    "id": x["deviceId"],
+                    "name": x["name"],
+                    "serial_number": x["serialNumber"],
+                }
+                error_signature = ""
+                request_type = "GET"
+                payload = ""
+            case "accessControllers":
+                subdomain = "vcerberus"
+                path = f"access/v2/user/access_controllers"
+                mapping_func = lambda x: {
+                    "id": x["accessControllerId"],
+                    "name": x["name"],
+                    "serial_number": x["serialNumber"],
+                }
+                error_signature = ""
+                request_type = "GET"
+                payload = ""
+            case "sensorDevice":
+                subdomain = "vsensor"
+                path = f"devices/list"
+                mapping_func = lambda x: {
+                    "id": x["deviceId"],
+                    "name": x["name"],
+                    "serial_number": x["claimedSerialNumber"],
+                }
+                error_signature = ""
+                request_type = "POST"
+                payload = {"organizationId": self.org_id}
             case _:
                 raise ValueError(f"Unknown device type: {object_type}")
 
@@ -254,15 +279,12 @@ class VerkadaInternalAPIClient:
             f"https://{subdomain}.command.verkada.com/__v/{self.org_short_name}/{path}"
         )
         headers = self._get_headers()
-        # params = {"page_size": 200}
         logger.debug(f"Fetching data from {url}...")
         logger.info(f"Finding {object_type}...")
-        response = self.session.get(url, headers=headers)
-
-        if response.status_code == 400:
-            if error_signature in response.text:
-                logger.info(f"Found 0 {object_type}.")
-                return []
+        if request_type == "POST":
+            response = self.session.post(url, headers=headers, json=payload)
+        else:
+            response = self.session.get(url, headers=headers)
 
         try:
             response.raise_for_status()
@@ -271,10 +293,125 @@ class VerkadaInternalAPIClient:
             logger.info(f"Retrieved {len(results)} {object_type}s")
             return results
         except (HTTPError, JSONDecodeError) as e:
+            if error_signature in response.text:
+                logger.info(f"Found 0 {object_type}.")
+                return []
             logger.error(f"Failed to fetch {object_type}: {e}")
             return []
         except Exception as e:
             logger.error(f"Unexpected error fetching {object_type}: {e}")
+            return []
+
+
+class VerkadaExternalAPIClient:
+    """
+    A client to interact with the PUBLIC (External) Verkada API endpoints.
+    Documentation: https://apidocs.verkada.com/
+    """
+
+    def __init__(self, api_key: str, org_short_name: str, region: str = "api"):
+        self.api_key = api_key
+        self.org_short_name = org_short_name
+        self.region = region
+
+        # Initialize session FIRST so it can be used by _generate_api_token
+        self.session = requests.Session()
+
+        retries = Retry(
+            total=4,
+            backoff_factor=0.5,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods={"POST", "GET", "DELETE"},
+        )
+        adapter = HTTPAdapter(max_retries=retries)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
+
+        # Generate the token immediately upon initialization
+        self.api_token = self._generate_api_token()
+
+    def _generate_api_token(self) -> str:
+        """
+        Exchanges the long-lived API Key for a short-lived API Token.
+        """
+        url = f"https://{self.region}.verkada.com/token"
+        headers = {"accept": "application/json", "x-api-key": self.api_key}
+
+        logger.debug("Attempting to generate External API Token...")
+
+        try:
+            response = self.session.post(url, headers=headers)
+            response.raise_for_status()
+
+            data = response.json()
+            token = data.get("token")
+
+            if not token:
+                raise ValueError("External token response missing 'token' key")
+
+            logger.info(f"API Token successfully generated: {token}")
+            return token
+
+        except HTTPError as e:
+            logger.error(f"Failed to generate token: {e.response.text}")
+            raise
+        except Exception as e:
+            logger.error(f"Error during token generation: {e}")
+            raise
+
+    def get_object(
+        self,
+        object_type: str,
+    ) -> List[Dict[str, Any]]:
+        match object_type:
+            case "cameras":
+                path = "cameras/v1/devices"
+                mapping_func = lambda x: {
+                    "id": x.get("camera_id"),
+                    "name": x.get("name"),
+                    "serial_number": x.get("serial"),
+                }
+                error_signature = "must include cameras"
+            case "guest_sites":
+                path = "guest/v1/sites"
+                mapping_func = lambda x: {
+                    "id": x.get("site_id"),
+                    "name": x.get("site_name"),
+                }
+                error_signature = "must include guest sites"
+            case _:
+                raise ValueError(f"Unknown device type: {object_type}")
+
+        url = f"https://{self.region}.verkada.com/{path}"
+        headers = {"accept": "application/json", "x-verkada-auth": self.api_token}
+        params = {"page_size": 200}
+        logger.debug(f"Fetching data from {url}...")
+        response = self.session.get(url, headers=headers, params=params)
+
+        if response.status_code == 400:
+            if error_signature in response.text:
+                logger.info(f"Found 0 {object_type}.")
+                return []
+
+        try:
+            response.raise_for_status()
+            json_data = response.json()
+            if object_type not in json_data or not isinstance(
+                json_data[object_type], list
+            ):
+                logger.warning(
+                    f"Response missing '{object_type}' array. Response keys: {list(json_data.keys())}"
+                )
+                return []
+            results = [mapping_func(item) for item in json_data[object_type]]
+            logger.info(f"Found {len(results)} {object_type}.")
+            return results
+
+        except HTTPError as e:
+            logger.error(f"HTTP Error fetching devices: {e.response.text}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error in generic fetcher: {e}")
             return []
 
 
@@ -297,5 +434,34 @@ internal_client = VerkadaInternalAPIClient(
 
 # Login to internal API
 internal_client.login()
-mapping_func = lambda x: {"id": x["deviceId"], "name": x["name"]}
-intercoms = internal_client.get_object("intercoms", "", mapping_func)
+external_api_key = internal_client.create_external_api_key()
+external_client = VerkadaExternalAPIClient(external_api_key, org_short_name, region)
+
+# sensors = internal_client.get_object("sensorDevice")
+
+
+# intercoms = internal_client.get_object("intercoms")
+# access_controllers = sanitize_list(
+#     intercoms, internal_client.get_object("accessControllers")
+# )
+# cameras = sanitize_list(intercoms, external_client.get_object("cameras"))
+
+guest_sites = external_client.get_object("guest_sites")
+
+# Print serial numbers of intercoms and cameras
+# for intercom in intercoms:
+#     print(f"Intercom ID: {intercom['id']}, Serial Number: {intercom['serial_number']}")
+
+# for sensor in sensors:
+#    print(f"Sensor ID: {sensor['id']}, Serial Number: {sensor['serial_number']}")
+
+# for access_controller in access_controllers:
+#     print(
+#         f"Access Controller ID: {access_controller['id']}, Serial Number: {access_controller['serial_number']}"
+#     )
+
+# for camera in cameras:
+#     print(f"Camera ID: {camera['id']}, Serial Number: {camera['serial_number']}")
+
+for guest_site in guest_sites:
+    print(f"Guest Site ID: {guest_site['id']}, Name: {guest_site['name']}")
