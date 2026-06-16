@@ -443,6 +443,46 @@ class DecommissionView(ShellView):
                 )
             )
 
+        if total == 0:
+            # Empty state — nothing to delete, so skip straight to a friendly
+            # message + a way out rather than a wall of zeros.
+            self._content_area.controls = [
+                ft.Container(height=40),
+                ft.Column(
+                    [
+                        ft.Icon(
+                            ft.Icons.CHECK_CIRCLE_OUTLINE,
+                            size=48,
+                            color=SECONDARY,
+                        ),
+                        ft.Container(height=10),
+                        ft.Text(
+                            "No assets found",
+                            size=20,
+                            color=TEXT_PRIMARY,
+                            weight=ft.FontWeight.W_600,
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                        ft.Text(
+                            "This organization is already clean — nothing to "
+                            "decommission.",
+                            size=13,
+                            color=TEXT_SECONDARY,
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                        ft.Container(height=20),
+                        _make_button(
+                            "Return to Home",
+                            lambda _: self.push_route("/home"),
+                            bgcolor=SECONDARY,
+                            width=240,
+                        ),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            ]
+            return
+
         self._content_area.controls = [
             *_section_heading(
                 "Assets Found",

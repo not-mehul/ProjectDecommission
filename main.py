@@ -15,6 +15,7 @@ import flet as ft
 
 import constants
 import theme
+from components import CommandPalette
 from constants import (
     APP_VERSION,
     BG,
@@ -212,11 +213,44 @@ async def main(page: ft.Page):
         latest, url = result
         show_update_banner(latest, url)
 
+    def open_command_palette():
+        """Build and show the Cmd/Ctrl-K palette for the active session."""
+
+        def logout():
+            clear_session()
+            push_route("/login")
+
+        commands = [
+            ("Go to Home", ft.Icons.GRID_VIEW_ROUNDED, lambda: push_route("/home")),
+            (
+                "Go to Commission",
+                ft.Icons.BUSINESS_ROUNDED,
+                lambda: push_route("/commission"),
+            ),
+            (
+                "Go to User Management",
+                ft.Icons.PEOPLE_ALT_ROUNDED,
+                lambda: push_route("/users"),
+            ),
+            (
+                "Go to Decommission",
+                ft.Icons.DELETE_SWEEP_ROUNDED,
+                lambda: push_route("/decommission"),
+            ),
+            (
+                "Toggle light / dark theme",
+                ft.Icons.BRIGHTNESS_6_ROUNDED,
+                toggle_theme,
+            ),
+            ("Log out", ft.Icons.LOGOUT_ROUNDED, logout),
+        ]
+        CommandPalette(page, commands).open()
+
     def on_key(e: ft.KeyboardEvent):
         """Global shortcuts.
 
         Esc          → back (pop_route), no-op on /login / /2fa.
-        Cmd/Ctrl-K   → jump to Home when an authenticated session is active.
+        Cmd/Ctrl-K   → open the command palette (authenticated sessions).
         Cmd/Ctrl-,   → trigger logout (and bounce to /login).
 
         Per-screen TextField submissions stay handled by `on_submit` on
@@ -230,8 +264,8 @@ async def main(page: ft.Page):
                 pop_route()
             return
         if ctrl_or_meta and e.key.upper() == "K":
-            if session_active() and (not history or history[-1] != "/home"):
-                push_route("/home")
+            if session_active():
+                open_command_palette()
             return
         if ctrl_or_meta and e.key == ",":
             if session_active():

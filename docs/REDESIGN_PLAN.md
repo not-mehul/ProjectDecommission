@@ -35,8 +35,8 @@ the navigation (page.views), window config, and View lifecycle are unchanged.
 - [x] T4.1 Shared progress primitives: `ProgressHeader` (determinate for decommission / indeterminate for commission, with "x/y · n failed"), `status_row`, `RawLogPanel`. Reports lead with a result banner and a failures-first section; decommission keeps its collapsible per-category groups.
 - [x] T4.2 Commission's flat run log moved behind a "View raw log" disclosure; Copy log + Export report (CSV) on both tools (`utils/export.py`, ~/Downloads).
 
-## Phase 5 · Polish
-- [ ] T5.1 Light/dark theme toggle + respect OS preference
-- [ ] T5.2 Non-blocking session banner + Extend session; amber chip
-- [ ] T5.3 Command palette (Cmd-K) overlay
-- [ ] T5.4 Inline Login validation/error states; empty/skeleton states
+## Phase 5 · Polish — DONE
+- [x] T5.1 Light/dark theme toggle (sidebar) + OS-preference default + persistence
+- [x] T5.2 Non-blocking pre-expiry banner with bounded "Extend session" (+15 min, capped) replacing the blocking modal; amber session chip
+- [x] T5.3 Command palette (Cmd/Ctrl-K) overlay — searchable nav + theme toggle + logout
+- [x] T5.4 Inline Login validation (field errors + error banner, migrated onto components); decommission "no assets found" empty state

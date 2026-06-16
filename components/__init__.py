@@ -17,6 +17,7 @@ from components.buttons import (
     secondary_button,
     set_button_loading,
 )
+from components.command_palette import CommandPalette
 from components.inputs import dropdown, text_field
 from components.progress import ProgressHeader, RawLogPanel, status_row
 from components.stepper import Stepper
@@ -45,4 +46,5 @@ __all__ = [
     "ProgressHeader",
     "RawLogPanel",
     "status_row",
+    "CommandPalette",
 ]

@@ -57,6 +57,11 @@ FIELD_SPACING = 15
 # Session
 SESSION_TIMEOUT_MINUTES = 30
 SESSION_WARNING_MINUTES = 5
+# Bounded "Extend session": each extension adds this many minutes, capped at
+# SESSION_MAX_EXTENSIONS per session so the absolute-limit model still holds
+# (it can't be reset indefinitely by navigating/clicking).
+SESSION_EXTENSION_MINUTES = 15
+SESSION_MAX_EXTENSIONS = 2
 
 # API
 # Used as a prefix for generated External API key names. The internal client

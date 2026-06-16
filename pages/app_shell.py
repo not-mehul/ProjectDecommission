@@ -26,13 +26,12 @@ import theme
 from constants import APP_VERSION, SESSION_WARNING_MINUTES
 from utils.db import load_credentials
 from utils.session import (
+    can_extend,
     clear_session,
+    extend_session,
     get_session_remaining,
-    mark_warning_shown,
     start_session,
-    was_warning_shown,
 )
-from utils.ui_utils import show_alert
 
 # Sidebar navigation model: (route, label, icon, brand tint). The brand color
 # is used only as a small icon tint — never as a dominant surface color.
@@ -82,6 +81,37 @@ class ShellView(ft.View):
             "", size=theme.FONT_CAPTION, color=theme.TEXT_SECONDARY
         )
         self._timer_task: asyncio.Task | None = None
+        # Non-blocking pre-expiry banner (replaces the old modal warning).
+        self._session_banner_text = ft.Text(
+            "", size=theme.FONT_CAPTION, color=theme.TEXT_PRIMARY, expand=True
+        )
+        self._extend_btn = ft.TextButton(
+            content=ft.Text(
+                "Extend session", color=theme.ACCENT, weight=theme.WEIGHT_MEDIUM
+            ),
+            on_click=self._on_extend,
+        )
+        self._session_banner = ft.Container(
+            visible=False,
+            bgcolor=theme.palette.tint(theme.WARNING, 0.12),
+            border=ft.Border.all(1, theme.palette.tint(theme.WARNING, 0.4)),
+            border_radius=theme.RADIUS_MD,
+            margin=ft.Margin.only(bottom=theme.SPACE_LG),
+            padding=ft.Padding.symmetric(
+                horizontal=theme.SPACE_LG, vertical=theme.SPACE_SM
+            ),
+            content=ft.Row(
+                [
+                    ft.Icon(
+                        ft.Icons.WARNING_AMBER_ROUNDED, color=theme.WARNING, size=18
+                    ),
+                    self._session_banner_text,
+                    self._extend_btn,
+                ],
+                spacing=theme.SPACE_MD,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+        )
 
     # ------------------------------------------------------------------
     # Composition
@@ -118,6 +148,7 @@ class ShellView(ft.View):
             padding=ft.Padding.all(theme.SPACE_2XL),
             content=ft.Column(
                 [
+                    self._session_banner,
                     ft.Column(header_texts, spacing=theme.SPACE_XS),
                     ft.Container(height=theme.SPACE_XL),
                     ft.Container(content=body, expand=True),
@@ -334,22 +365,21 @@ class ShellView(ft.View):
                 mins = int(remaining // 60)
                 secs = int(remaining % 60)
                 self._session_text.value = f"Session {mins:02d}:{secs:02d}"
+                in_warning = remaining <= SESSION_WARNING_MINUTES * 60
                 # Tint the chip as it nears expiry.
                 self._session_text.color = (
-                    theme.WARNING
-                    if remaining <= SESSION_WARNING_MINUTES * 60
-                    else theme.TEXT_SECONDARY
+                    theme.WARNING if in_warning else theme.TEXT_SECONDARY
                 )
-                if (
-                    remaining <= SESSION_WARNING_MINUTES * 60
-                    and not was_warning_shown()
-                ):
-                    mark_warning_shown()
-                    show_alert(
-                        page,
-                        "Session Warning",
-                        f"Your session expires in {SESSION_WARNING_MINUTES} minutes.",
+                # Non-blocking banner instead of a modal: surface it inside the
+                # warning window with an Extend action (when extensions remain).
+                if in_warning:
+                    self._session_banner_text.value = (
+                        f"Your session expires in {mins:02d}:{secs:02d}."
                     )
+                    self._extend_btn.visible = can_extend()
+                    self._session_banner.visible = True
+                else:
+                    self._session_banner.visible = False
                 try:
                     page.update()
                 except Exception:
@@ -357,6 +387,13 @@ class ShellView(ft.View):
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
             pass
+
+    def _on_extend(self, e):
+        if extend_session():
+            self._session_banner.visible = False
+            page = getattr(self, "page", None)
+            if page:
+                page.update()
 
     def _on_logout(self, e):
         if self._timer_task and not self._timer_task.done():
