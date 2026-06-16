@@ -149,7 +149,7 @@ class LoginView(ft.View):
                     self.login_btn,
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-                scroll=ft.ScrollMode.ADAPTIVE,
+                tight=True,
             ),
         )
 

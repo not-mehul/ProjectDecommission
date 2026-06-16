@@ -130,7 +130,9 @@ class UsersView(ShellView):
 
         # The multi-step flow keeps its own step-back control (the shell
         # header has no back arrow); at step 0 this returns Home.
-        self._back_button = ghost_button("← Back", on_click=self._on_back)
+        self._back_button = ghost_button(
+            "Back", on_click=self._on_back, icon=ft.Icons.ARROW_BACK
+        )
         card_content: list[ft.Control] = [
             ft.Row([self._back_button]),
             self._step_indicators,

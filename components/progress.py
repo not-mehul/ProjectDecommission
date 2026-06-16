@@ -109,9 +109,17 @@ class RawLogPanel(ft.Column):
                 selectable=True,
             ),
         )
+        self._chevron = ft.Icon(
+            ft.Icons.CHEVRON_RIGHT, size=18, color=theme.TEXT_SECONDARY
+        )
+        self._toggle_label = ft.Text(
+            "View raw log", color=theme.TEXT_SECONDARY, size=theme.FONT_CAPTION
+        )
         self._toggle = ft.TextButton(
-            content=ft.Text(
-                "▸ View raw log", color=theme.TEXT_SECONDARY, size=theme.FONT_CAPTION
+            content=ft.Row(
+                [self._chevron, self._toggle_label],
+                spacing=theme.SPACE_XS,
+                tight=True,
             ),
             on_click=self._on_toggle,
         )
@@ -121,5 +129,8 @@ class RawLogPanel(ft.Column):
         visible = not self._body.visible
         self._body.visible = visible
         self._body.content.value = self._get_text()
-        self._toggle.content.value = "▾ Hide raw log" if visible else "▸ View raw log"
+        self._chevron.name = (
+            ft.Icons.EXPAND_MORE if visible else ft.Icons.CHEVRON_RIGHT
+        )
+        self._toggle_label.value = "Hide raw log" if visible else "View raw log"
         e.page.update()

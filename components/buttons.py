@@ -94,12 +94,26 @@ def ghost_button(
     *,
     on_click=None,
     color: str | None = None,
+    icon: str | None = None,
 ) -> ft.TextButton:
-    """Low-emphasis text button (e.g. '+ Add participant')."""
+    """Low-emphasis text button (e.g. '+ Add participant').
+
+    Pass `icon` for a leading Material icon (preferred over unicode arrows,
+    which aren't guaranteed to exist in the bundled font).
+    """
+    fg = color or theme.ACCENT
+    text = ft.Text(label, color=fg, weight=theme.WEIGHT_MEDIUM)
+    content = (
+        text
+        if icon is None
+        else ft.Row(
+            [ft.Icon(icon, size=16, color=fg), text],
+            spacing=theme.SPACE_XS,
+            tight=True,
+        )
+    )
     return ft.TextButton(
-        content=ft.Text(
-            label, color=color or theme.ACCENT, weight=theme.WEIGHT_MEDIUM
-        ),
+        content=content,
         style=ft.ButtonStyle(shape=_shape()),
         on_click=on_click,
     )

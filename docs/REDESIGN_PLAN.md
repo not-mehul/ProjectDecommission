@@ -40,3 +40,10 @@ the navigation (page.views), window config, and View lifecycle are unchanged.
 - [x] T5.2 Non-blocking pre-expiry banner with bounded "Extend session" (+15 min, capped) replacing the blocking modal; amber session chip
 - [x] T5.3 Command palette (Cmd/Ctrl-K) overlay — searchable nav + theme toggle + logout
 - [x] T5.4 Inline Login validation (field errors + error banner, migrated onto components); decommission "no assets found" empty state
+
+## Phase 6 · Visual QA pass (headless CanvasKit screenshots) — DONE
+Rendered every view/state with a headless browser (tools/shoot_app.py) and reviewed spacing/format:
+- [x] Replaced unicode arrow/triangle glyphs (▯ tofu in the bundled font) with Material icons / plain labels (Edit/Back/Review/raw-log chevron; ghost_button gained an `icon` param)
+- [x] Home tool cards: full descriptions, equal height (was clipped by a too-short fixed height)
+- [x] Login + 2FA cards: hug content and center (were filling full viewport height — Column mainAxisSize)
+- [x] Decommission "Assets Found": uses stat_row so non-zero counts pop and zeros recede

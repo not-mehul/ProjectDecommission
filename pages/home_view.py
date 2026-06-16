@@ -103,7 +103,7 @@ class HomeView(ShellView):
         )
         # Hover affordance: accent border + lift.
         inner.animate = ft.Animation(160, ft.AnimationCurve.EASE_IN_OUT)
-        wrapper = ft.Container(content=inner, expand=1, height=190)
+        wrapper = ft.Container(content=inner, expand=1, height=220)
         wrapper.on_hover = lambda e, c=inner: self._hover(e, c)
         return wrapper
 

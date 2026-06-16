@@ -126,7 +126,7 @@ class TwoFactorView(ft.View):
             content=ft.Column(
                 column_controls,
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-                alignment=ft.MainAxisAlignment.CENTER,
+                tight=True,
             ),
         )
 

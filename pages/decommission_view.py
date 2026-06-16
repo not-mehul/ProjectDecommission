@@ -430,18 +430,9 @@ class DecommissionView(ShellView):
         for category in ASSET_CATEGORIES:
             count = len(self._assets.get(category, []))
             total += count
-            rows.append(
-                ft.Row(
-                    [
-                        ft.Text(category, color=TEXT_PRIMARY, expand=True),
-                        ft.Text(
-                            str(count),
-                            color=TEXT_SECONDARY,
-                            text_align=ft.TextAlign.RIGHT,
-                        ),
-                    ],
-                )
-            )
+            # stat_row mutes zero counts and accents the non-zero ones so the
+            # categories that actually have assets stand out in the long list.
+            rows.append(stat_row(category, count, accent=PRIMARY))
 
         if total == 0:
             # Empty state — nothing to delete, so skip straight to a friendly
@@ -534,7 +525,7 @@ class DecommissionView(ShellView):
         # SELECT no longer deletes directly — it advances to the CONFIRM
         # summary, where the destructive action is confirmed.
         self._delete_btn = _make_button(
-            "Review Selection →", self._on_review_selection
+            "Review Selection", self._on_review_selection
         )
         export_btn = ft.OutlinedButton(
             content=ft.Text(
@@ -897,7 +888,14 @@ class DecommissionView(ShellView):
             bgcolor=ERROR,
         )
         back_btn = ft.TextButton(
-            content=ft.Text("← Back", color=TEXT_SECONDARY),
+            content=ft.Row(
+                [
+                    ft.Icon(ft.Icons.ARROW_BACK, size=16, color=TEXT_SECONDARY),
+                    ft.Text("Back", color=TEXT_SECONDARY),
+                ],
+                spacing=4,
+                tight=True,
+            ),
             on_click=self._back_to_select,
         )
 

@@ -184,7 +184,7 @@ class CommissionView(ShellView):
         # rather than running immediately.
         self.commission_btn = ft.ElevatedButton(
             content=ft.Text(
-                "Review →",
+                "Review",
                 color=TEXT_PRIMARY,
                 weight=ft.FontWeight.W_600,
             ),
@@ -495,7 +495,7 @@ class CommissionView(ShellView):
 
         confirm_btn = ft.ElevatedButton(
             content=ft.Text(
-                "Commission Organization →",
+                "Commission Organization",
                 color=TEXT_PRIMARY,
                 weight=ft.FontWeight.W_600,
             ),
@@ -512,7 +512,12 @@ class CommissionView(ShellView):
             ),
             inset,
             ft.Row(
-                [ghost_button("← Edit", on_click=self._on_edit), confirm_btn],
+                [
+                    ghost_button(
+                        "Edit", on_click=self._on_edit, icon=ft.Icons.ARROW_BACK
+                    ),
+                    confirm_btn,
+                ],
                 spacing=10,
             ),
         ]
