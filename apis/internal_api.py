@@ -118,6 +118,13 @@ class VerkadaInternalAPIClient:
         # Saved during login() so verify_mfa() can replay the same payload
         self._pending_payload: dict | None = None
 
+        # Populated when login() raises MFARequiredError so the 2FA screen
+        # can prompt for the right factor (SMS vs authenticator/QR) and
+        # offer a resend. None/False until an MFA challenge is seen.
+        self.mfa_sms_enabled: bool = False
+        self.mfa_qr_enabled: bool = False
+        self.mfa_sms_contact: str | None = None
+
     # ------------------------------------------------------------------
     # Identity helpers
     # ------------------------------------------------------------------
@@ -452,6 +459,62 @@ class VerkadaInternalAPIClient:
             raise ConnectionError(f"{error_label}: {e}")
         return data, response.status_code
 
+    def _send_mfa_sms(self) -> str | None:
+        """
+        Dispatch an SMS 2FA code and return the masked destination digits.
+
+        Posts to vauth's auth/twofactor/sms/new with the login credentials.
+        Runs pre-auth (no session tokens yet), so like login()/verify_mfa()
+        it can't go through _request. Returns the masked digits (e.g.
+        "7647") on success, or None if the response omitted them.
+
+        Raises ConnectionError on transport or decode failure so callers can
+        decide whether a send failure should block the 2FA challenge.
+        """
+        endpoint, formatted_path = resolve("auth.twofactor.sms.new")
+        url = build_url(endpoint, self.org_short_name, formatted_path)
+        payload = {
+            "email": self.email,
+            "password": self.password,
+            "orgShortName": self.org_short_name,
+        }
+        log_label = f"{self.org_short_name}/{formatted_path}"
+        log_request = f'{{"email": "{self.email}"}}'
+
+        try:
+            response = self.session.post(url, json=payload, timeout=DEFAULT_TIMEOUT)
+            data = response.json()
+        except JSONDecodeError:
+            log_api_call("POST", log_label, log_request, "200", "non-JSON response")
+            raise ConnectionError(
+                "Failed to send SMS code: server returned a non-JSON response."
+            )
+        except RequestException as e:
+            raise ConnectionError(f"Failed to send SMS code: {e}")
+
+        sms_sent = data.get("smsSent") if isinstance(data, dict) else None
+        log_api_call(
+            "POST",
+            log_label,
+            log_request,
+            str(response.status_code),
+            f'{{"smsSent": "{sms_sent}"}}',
+        )
+        return sms_sent
+
+    def resend_mfa_sms(self) -> str | None:
+        """
+        Re-send the SMS 2FA code (used by the 2FA screen's resend action).
+
+        Only valid mid-login, after login() has raised MFARequiredError for
+        an SMS-enabled org. Returns and caches the masked destination digits.
+        """
+        if not self._pending_payload:
+            raise ValueError("No pending login. Call login() first.")
+        contact = self._send_mfa_sms()
+        self.mfa_sms_contact = contact or self.mfa_sms_contact
+        return self.mfa_sms_contact
+
     def login(self) -> None:
         """
         Authenticate with the Verkada Provisioning API.
@@ -498,9 +561,37 @@ class VerkadaInternalAPIClient:
 
         if "2FA invalid" in msg:
             self._pending_payload = payload
-            sms_contact = data.get("data", {}).get("smsSent")
-            log_api_call("POST", log_label, log_request, "200 (MFA)", msg)
-            raise MFARequiredError("MFA Required", sms_contact)
+            mfa_data = data.get("data") or {}
+            sms_enabled = bool(mfa_data.get("smsEnabled"))
+            qr_enabled = bool(mfa_data.get("qrEnabled"))
+            sms_contact = mfa_data.get("smsSent")
+
+            # The login response no longer dispatches the SMS itself nor
+            # carries the destination digits. When SMS is a configured
+            # factor we must hit auth/twofactor/sms/new to send the code
+            # (and learn the masked number). QR/authenticator orgs need no
+            # send — the user already has a rolling code. A send failure is
+            # non-fatal: an org may also offer QR, and the 2FA screen can
+            # retry via resend, so we still surface the challenge.
+            if sms_enabled:
+                try:
+                    sms_contact = self._send_mfa_sms() or sms_contact
+                except ConnectionError as e:
+                    log_api_call(
+                        "POST", log_label, log_request, "sms_send_failed", str(e)
+                    )
+
+            self.mfa_sms_enabled = sms_enabled
+            self.mfa_qr_enabled = qr_enabled
+            self.mfa_sms_contact = sms_contact
+
+            log_api_call("POST", log_label, log_request, f"{status} (MFA)", msg)
+            raise MFARequiredError(
+                "MFA Required",
+                sms_contact,
+                sms_enabled=sms_enabled,
+                qr_enabled=qr_enabled,
+            )
 
         log_api_call("POST", log_label, log_request, str(status), msg)
         raise ConnectionError(f"Login failed: {msg or 'unknown error'}")
