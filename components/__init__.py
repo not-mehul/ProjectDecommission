@@ -18,6 +18,7 @@ from components.buttons import (
     set_button_loading,
 )
 from components.inputs import dropdown, text_field
+from components.stepper import Stepper
 from components.surfaces import (
     badge,
     banner,
@@ -39,4 +40,5 @@ __all__ = [
     "stat_row",
     "banner",
     "badge",
+    "Stepper",
 ]

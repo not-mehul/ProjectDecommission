@@ -26,10 +26,10 @@ the navigation (page.views), window config, and View lifecycle are unchanged.
 - [x] T2.2 Org + live session chip in sidebar; logout in sidebar; session countdown/warning/auto-logout centralized in ShellView (now ticks on every authed screen). Global Cmd-K/Esc/Cmd-, unchanged in main.py
 - [x] T2.3 Compact dashboard Home (tool cards + shortcut hint); brand colors demoted to small nav/card icon tints. Tool views (commission/decommission/users) re-based onto ShellView; users keeps an in-card step-back button
 
-## Phase 3 · Unified flows (review gate)
-- [ ] T3.1 Shared stepper component; restyle Users stepper
-- [ ] T3.2 Commission: Configure → Review/summary → Run → Report
-- [ ] T3.3 Decommission: Scan → Select → Confirm summary → Run → Report
+## Phase 3 · Unified flows (review gate) — DONE
+- [x] T3.1 Shared `Stepper` component (done=check / active / upcoming); Users stepper restyled onto it
+- [x] T3.2 Commission: Configure → Review (pre-flight summary of what will be created) → Run → Report, driven by the shared stepper
+- [x] T3.3 Decommission: Scan → Review → Select → Confirm (new destructive summary + danger banner before deletion) → Run → Report, with the shared stepper across all states
 
 ## Phase 4 · Progress & report screens (review gate)
 - [ ] T4.1 Structured progress (determinate bar, x/y · n failed), collapsible groups, failures-first

@@ -35,6 +35,7 @@ from constants import (
     TEXT_SECONDARY,
     WARNING,
 )
+from components import Stepper, banner, stat_row
 from pages.app_shell import ShellView
 from utils.cancellation import CancellationToken
 from utils.executor import _executor
@@ -75,8 +76,20 @@ def _item_descriptor(item: dict, *, include_id: bool = True) -> str:
 SCAN = "scan"
 REVIEW = "review"
 SELECT = "select"
+CONFIRM = "confirm"
 PROCESSING = "processing"
 COMPLETE = "complete"
+
+# Shared stepper labels and the state -> step-index map driving it.
+_DECOMMISSION_STEPS = ["Scan", "Review", "Select", "Confirm", "Run", "Report"]
+_STATE_STEP = {
+    SCAN: 0,
+    REVIEW: 1,
+    SELECT: 2,
+    CONFIRM: 3,
+    PROCESSING: 4,
+    COMPLETE: 5,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +160,7 @@ class DecommissionView(ShellView):
     # ------------------------------------------------------------------
 
     def _build_ui(self):
+        self._stepper = Stepper(_DECOMMISSION_STEPS, current=0)
         self._content_area = ft.Column(
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             scroll=ft.ScrollMode.ADAPTIVE,
@@ -160,7 +174,16 @@ class DecommissionView(ShellView):
             border=ft.Border.all(1, BORDER),
             shadow=CARD_SHADOW,
             padding=ft.Padding.all(CARD_PADDING),
-            content=self._content_area,
+            content=ft.Column(
+                [
+                    ft.Container(
+                        content=self._stepper,
+                        padding=ft.Padding.only(bottom=FIELD_SPACING),
+                    ),
+                    self._content_area,
+                ],
+                expand=True,
+            ),
             expand=True,
         )
 
@@ -169,6 +192,7 @@ class DecommissionView(ShellView):
         self._render_state()
 
     def _render_state(self):
+        self._stepper.set_active(_STATE_STEP.get(self._state, 0))
         self._content_area.controls.clear()
         if self._state == SCAN:
             self._render_scan()
@@ -176,6 +200,8 @@ class DecommissionView(ShellView):
             self._render_review()
         elif self._state == SELECT:
             self._render_select()
+        elif self._state == CONFIRM:
+            self._render_confirm()
         elif self._state == PROCESSING:
             self._render_processing()
         elif self._state == COMPLETE:
@@ -457,8 +483,10 @@ class DecommissionView(ShellView):
                 continue
             tiles.append(self._build_leaf_tile(category, items))
 
+        # SELECT no longer deletes directly — it advances to the CONFIRM
+        # summary, where the destructive action is confirmed.
         self._delete_btn = _make_button(
-            "Delete Selected", self._on_delete, bgcolor=ERROR
+            "Review Selection →", self._on_review_selection
         )
         export_btn = ft.OutlinedButton(
             content=ft.Text(
@@ -779,6 +807,70 @@ class DecommissionView(ShellView):
         except Exception as ex:
             show_alert(e.page, "Export Failed", str(ex))
 
+    # ------------------------------------------------------------------
+    # CONFIRM state — final destructive summary before deletion
+    # ------------------------------------------------------------------
+
+    def _selected_categories_list(self) -> list[str]:
+        return [cat for cat, checked in self._selected_categories.items() if checked]
+
+    def _on_review_selection(self, e):
+        """SELECT -> CONFIRM: show exactly what will be deleted."""
+        if not self._selected_categories_list():
+            show_toast(
+                e.page,
+                "Please select at least one category to delete.",
+                kind="warning",
+            )
+            return
+        self._state = CONFIRM
+        self._render_state()
+        e.page.update()
+
+    def _back_to_select(self, e):
+        self._state = SELECT
+        self._render_state()
+        e.page.update()
+
+    def _render_confirm(self):
+        selected = set(self._selected_categories_list())
+        rows: list[ft.Control] = []
+        total = 0
+        for category in ASSET_CATEGORIES:
+            if category not in selected:
+                continue
+            count = len(self._assets.get(category, []))
+            total += count
+            rows.append(stat_row(category, count, accent=ERROR))
+
+        confirm_btn = _make_button(
+            f"Delete {total} Asset{'s' if total != 1 else ''}",
+            self._on_delete,
+            bgcolor=ERROR,
+        )
+        back_btn = ft.TextButton(
+            content=ft.Text("← Back", color=TEXT_SECONDARY),
+            on_click=self._back_to_select,
+        )
+
+        self._content_area.controls = [
+            *_section_heading(
+                "Confirm Deletion",
+                f"{total} asset{'s' if total != 1 else ''} across "
+                f"{len(selected)} categor{'ies' if len(selected) != 1 else 'y'} "
+                "will be permanently removed.",
+            ),
+            banner(
+                "This permanently deletes the selected assets in dependency "
+                "order and cannot be undone.",
+                kind="danger",
+            ),
+            ft.Container(height=10),
+            ft.Column(rows, spacing=8),
+            ft.Container(height=15),
+            ft.Row([back_btn, confirm_btn], spacing=10),
+        ]
+
     async def _on_delete(self, e):
         selected = [
             cat for cat, checked in self._selected_categories.items() if checked
@@ -1045,6 +1137,7 @@ class DecommissionView(ShellView):
             )
 
         self._state = COMPLETE
+        self._stepper.set_active(_STATE_STEP[COMPLETE])
         self._render_complete()
         page.update()
 

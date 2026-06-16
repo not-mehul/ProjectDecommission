@@ -28,7 +28,7 @@ from constants import (
     WARNING,
     load_internal_invite_defaults,
 )
-from components import ghost_button
+from components import Stepper, ghost_button
 from pages.app_shell import ShellView
 from utils.db import load_import_settings, save_import_settings
 from utils.executor import _executor
@@ -110,7 +110,6 @@ class UsersView(ShellView):
         self._sites: list[dict] = []
         self._participants: list[dict] = []
         self._selected_date = datetime.now()
-        self._step_circles: list[ft.Container] = []
 
         self._build_ui()
 
@@ -159,61 +158,17 @@ class UsersView(ShellView):
     # Step indicator strip
     # ------------------------------------------------------------------
 
-    def _build_step_indicators(self) -> ft.Row:
-        indicators: list[ft.Control] = []
-        self._step_circles.clear()
-        for i, label in enumerate(_STEP_LABELS):
-            color = PRIMARY if i == 0 else BORDER
-            circle = ft.Container(
-                width=32,
-                height=32,
-                border_radius=16,
-                bgcolor=color,
-                content=ft.Text(
-                    str(i + 1),
-                    color=TEXT_PRIMARY,
-                    size=14,
-                    text_align=ft.TextAlign.CENTER,
-                ),
-                alignment=ft.Alignment.CENTER,
-            )
-            self._step_circles.append(circle)
-            indicators.append(
-                ft.Column(
-                    [
-                        circle,
-                        ft.Text(
-                            label,
-                            size=11,
-                            color=TEXT_SECONDARY,
-                            text_align=ft.TextAlign.CENTER,
-                        ),
-                    ],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=4,
-                )
-            )
-            if i < len(_STEP_LABELS) - 1:
-                indicators.append(
-                    ft.Container(
-                        width=40,
-                        height=2,
-                        bgcolor=BORDER,
-                        margin=ft.Margin.only(bottom=18),
-                    )
-                )
-        return ft.Row(indicators, alignment=ft.MainAxisAlignment.CENTER, spacing=8)
+    def _build_step_indicators(self) -> ft.Control:
+        """Build the shared Stepper for the four invite steps."""
+        self._stepper = Stepper(_STEP_LABELS, current=0)
+        return ft.Container(
+            content=self._stepper,
+            padding=ft.Padding.only(bottom=18),
+        )
 
     def _update_step_indicators(self):
-        """Recolor the circles based on _current_step. Uses the saved circle
-        list so we don't have to re-walk the indicator row's children."""
-        for i, circle in enumerate(self._step_circles):
-            if i < self._current_step:
-                circle.bgcolor = SECONDARY
-            elif i == self._current_step:
-                circle.bgcolor = PRIMARY
-            else:
-                circle.bgcolor = BORDER
+        """Advance the shared Stepper to the current step."""
+        self._stepper.set_active(self._current_step)
 
     # ------------------------------------------------------------------
     # Step 1: API Key

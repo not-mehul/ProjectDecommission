@@ -14,6 +14,7 @@ import os
 
 import flet as ft
 
+import theme
 from apis.external_api import VerkadaExternalAPIClient
 from constants import (
     AS_ACCESS_LEVEL_NAME,
@@ -68,15 +69,18 @@ from constants import (
     VSS_SITE_NAME,
     WARNING,
 )
+from components import Stepper, ghost_button, section_header, stat_row
 from pages.app_shell import ShellView
 from utils.cancellation import CancellationToken
 from utils.executor import _executor
 from utils.session import get_internal_client, set_external_client
-from utils.ui_utils import set_button_loading, show_toast
+from utils.ui_utils import show_toast
 
 _ASSETS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets"
 )
+
+_COMMISSION_STEPS = ["Configure", "Review", "Run", "Report"]
 
 
 class CommissionView(ShellView):
@@ -161,20 +165,22 @@ class CommissionView(ShellView):
             on_click=self._add_user_row,
         )
 
+        # Configure-step primary action advances to the Review summary
+        # rather than running immediately.
         self.commission_btn = ft.ElevatedButton(
             content=ft.Text(
-                "Commission Organization",
+                "Review →",
                 color=TEXT_PRIMARY,
                 weight=ft.FontWeight.W_600,
             ),
             bgcolor=PRIMARY,
             style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)),
             height=45,
-            on_click=self._on_commission,
+            on_click=self._on_review,
             expand=True,
         )
-        # Cancel sits next to the primary button; hidden until the run
-        # starts, re-hidden when it finishes.
+        # Cancel is shown during the Run step (next to the live progress),
+        # hidden otherwise.
         self.cancel_btn = ft.OutlinedButton(
             content=ft.Text("Cancel", color=ERROR, weight=ft.FontWeight.W_500),
             style=ft.ButtonStyle(
@@ -185,10 +191,7 @@ class CommissionView(ShellView):
             on_click=self._on_cancel,
             visible=False,
         )
-        self._button_row = ft.Row(
-            [self.commission_btn, self.cancel_btn],
-            spacing=10,
-        )
+        self._button_row = ft.Row([self.commission_btn], spacing=10)
 
         self._progress_column = ft.Column(spacing=8, visible=False)
 
@@ -220,6 +223,22 @@ class CommissionView(ShellView):
             spacing=FIELD_SPACING,
         )
 
+        # Configure -> Review -> Run -> Report stepper, plus the Review and
+        # Run panels (hidden until their step). The form_section is the
+        # Configure step; _progress_column is the Run/Report step.
+        self._stepper = Stepper(_COMMISSION_STEPS, current=0)
+        self._review_section = ft.Column(
+            visible=False,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+            spacing=FIELD_SPACING,
+        )
+        self._run_section = ft.Column(
+            [ft.Row([self.cancel_btn]), self._progress_column],
+            visible=False,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+            spacing=FIELD_SPACING,
+        )
+
         form_card = ft.Container(
             bgcolor=SURFACE,
             border_radius=12,
@@ -227,7 +246,15 @@ class CommissionView(ShellView):
             shadow=CARD_SHADOW,
             padding=ft.Padding.all(CARD_PADDING),
             content=ft.Column(
-                [self._form_section, self._progress_column],
+                [
+                    ft.Container(
+                        content=self._stepper,
+                        padding=ft.Padding.only(bottom=FIELD_SPACING),
+                    ),
+                    self._form_section,
+                    self._review_section,
+                    self._run_section,
+                ],
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
                 scroll=ft.ScrollMode.ADAPTIVE,
                 spacing=FIELD_SPACING,
@@ -373,6 +400,102 @@ class CommissionView(ShellView):
         return True, code
 
     # ------------------------------------------------------------------
+    # Review step
+    # ------------------------------------------------------------------
+
+    def _collect_supporting_users(self) -> list[tuple[str, str, str]]:
+        """Pull (first, last, email) tuples from the non-empty user rows."""
+        users: list[tuple[str, str, str]] = []
+        for row in self._users_column.controls:
+            if isinstance(row, ft.Row) and len(row.controls) >= 3:
+                first = (row.controls[0].value or "").strip()
+                last = (row.controls[1].value or "").strip()
+                email = (row.controls[2].value or "").strip()
+                if first or last or email:
+                    users.append((first, last, email))
+        return users
+
+    def _on_review(self, e):
+        """Configure -> Review: validate, then show the pre-flight summary."""
+        ok, code = self._validate_form(e)
+        if not ok:
+            return
+        self._review_section.controls = self._build_review_summary(code)
+        self._stepper.set_active(1)
+        self._form_section.visible = False
+        self._review_section.visible = True
+        self._run_section.visible = False
+        e.page.update()
+
+    def _on_edit(self, e):
+        """Review -> Configure: go back to editing the form."""
+        self._stepper.set_active(0)
+        self._form_section.visible = True
+        self._review_section.visible = False
+        e.page.update()
+
+    def _build_review_summary(self, code: str) -> list[ft.Control]:
+        """Build the Review panel: what will be created + Edit/Confirm."""
+        config = TEMPLATE_FIELDS[code]
+        rows: list[ft.Control] = [
+            stat_row("Template", TEMPLATE_DISPLAY_NAMES.get(code, code)),
+            stat_row("Kit", (self.kit_dropdown.value or "").strip() or "—"),
+        ]
+        for device_type in config["devices"]:
+            rows.append(
+                stat_row(device_type, self._device_serial(device_type) or "—")
+            )
+        if config.get("face_analytics"):
+            rows.append(
+                stat_row(
+                    "Face Analytics",
+                    "On" if self.face_analytics_switch.value else "Off",
+                )
+            )
+        users = self._collect_supporting_users()
+        rows.append(stat_row("Supporting Users", len(users)))
+        for first, last, email in users:
+            rows.append(
+                ft.Text(
+                    f"   • {first} {last}  ·  {email}".rstrip(),
+                    size=12,
+                    color=TEXT_SECONDARY,
+                )
+            )
+
+        inset = ft.Container(
+            bgcolor=theme.SURFACE_VARIANT,
+            border=ft.Border.all(1, BORDER),
+            border_radius=theme.RADIUS_MD,
+            padding=ft.Padding.all(CARD_PADDING),
+            content=ft.Column(rows, spacing=theme.SPACE_SM),
+        )
+
+        confirm_btn = ft.ElevatedButton(
+            content=ft.Text(
+                "Commission Organization →",
+                color=TEXT_PRIMARY,
+                weight=ft.FontWeight.W_600,
+            ),
+            bgcolor=PRIMARY,
+            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)),
+            height=45,
+            on_click=self._on_commission,
+            expand=True,
+        )
+
+        return [
+            section_header(
+                "Review", "Confirm what will be created before commissioning."
+            ),
+            inset,
+            ft.Row(
+                [ghost_button("← Edit", on_click=self._on_edit), confirm_btn],
+                spacing=10,
+            ),
+        ]
+
+    # ------------------------------------------------------------------
     # Commission orchestration
     # ------------------------------------------------------------------
 
@@ -381,10 +504,13 @@ class CommissionView(ShellView):
         if not ok:
             return
 
-        set_button_loading(self.commission_btn, True, "Commissioning")
+        # Review -> Run: swap panels, advance the stepper, arm cancellation.
+        self._stepper.set_active(2)
+        self._form_section.visible = False
+        self._review_section.visible = False
+        self._run_section.visible = True
         self._progress_column.controls.clear()
         self._progress_column.visible = True
-        # Reset / arm cancellation, surface the Cancel button.
         self._cancel_token = CancellationToken()
         self.cancel_btn.visible = True
         self.cancel_btn.disabled = False
@@ -1036,6 +1162,9 @@ class CommissionView(ShellView):
         Branches on the cancel token so a user-aborted run shows a clear
         "Cancelled" header instead of the success/partial-success line.
         """
+        # Run -> Report.
+        self._stepper.set_active(3)
+
         cancelled = bool(self._cancel_token and self._cancel_token.is_cancelled)
         if cancelled:
             status_color = WARNING
