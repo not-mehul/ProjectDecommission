@@ -69,12 +69,22 @@ from constants import (
     VSS_SITE_NAME,
     WARNING,
 )
-from components import Stepper, ghost_button, section_header, stat_row
+from components import (
+    ProgressHeader,
+    RawLogPanel,
+    Stepper,
+    banner,
+    ghost_button,
+    section_header,
+    status_row,
+    stat_row,
+)
 from pages.app_shell import ShellView
 from utils.cancellation import CancellationToken
 from utils.executor import _executor
+from utils.export import export_csv
 from utils.session import get_internal_client, set_external_client
-from utils.ui_utils import show_toast
+from utils.ui_utils import show_alert, show_toast
 
 _ASSETS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets"
@@ -97,6 +107,11 @@ class CommissionView(ShellView):
         # Cooperative cancel for the commission step loop. Checked
         # between steps; the in-flight step is allowed to complete.
         self._cancel_token: CancellationToken | None = None
+        # Run tracking for the structured progress/report screen.
+        self._steps_done = 0
+        self._steps_failed = 0
+        self._failures: list[tuple[str, str]] = []
+        self._run_log: list[str] = []
         self._load_kits()
         self._build_ui()
 
@@ -232,8 +247,15 @@ class CommissionView(ShellView):
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             spacing=FIELD_SPACING,
         )
+        # Total commission steps aren't known up front (flows branch by
+        # template), so the run bar is indeterminate and reports live counts.
+        self._progress_header = ProgressHeader(determinate=False)
         self._run_section = ft.Column(
-            [ft.Row([self.cancel_btn]), self._progress_column],
+            [
+                self._progress_header,
+                ft.Row([self.cancel_btn]),
+                self._progress_column,
+            ],
             visible=False,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             spacing=FIELD_SPACING,
@@ -511,6 +533,12 @@ class CommissionView(ShellView):
         self._run_section.visible = True
         self._progress_column.controls.clear()
         self._progress_column.visible = True
+        # Reset run tracking for the structured progress header / report.
+        self._steps_done = 0
+        self._steps_failed = 0
+        self._failures = []
+        self._run_log = []
+        self._progress_header.set_progress(0, failed=0)
         self._cancel_token = CancellationToken()
         self.cancel_btn.visible = True
         self.cancel_btn.disabled = False
@@ -1157,53 +1185,128 @@ class CommissionView(ShellView):
         page.update()
 
     def _render_summary(self, page, all_success: bool) -> None:
-        """Hide the form, show a final status row plus a 'Return to Home' button.
+        """Run -> Report: a structured result with failures surfaced first.
 
         Branches on the cancel token so a user-aborted run shows a clear
         "Cancelled" header instead of the success/partial-success line.
         """
-        # Run -> Report.
         self._stepper.set_active(3)
 
         cancelled = bool(self._cancel_token and self._cancel_token.is_cancelled)
         if cancelled:
-            status_color = WARNING
-            icon_name = ft.Icons.CANCEL
+            kind = "warning"
             message = "Commission cancelled."
+            bar_color = WARNING
         elif all_success:
-            status_color = SECONDARY
-            icon_name = ft.Icons.CHECK_CIRCLE
-            message = "Commission complete!"
+            kind = "success"
+            message = f"Commission complete — {self._steps_done} steps, 0 failed."
+            bar_color = SECONDARY
         else:
-            status_color = WARNING
-            icon_name = ft.Icons.WARNING
-            message = "Commission completed with some errors"
+            kind = "warning"
+            message = (
+                f"Commission completed with errors — {self._steps_done} done, "
+                f"{self._steps_failed} failed."
+            )
+            bar_color = WARNING
 
-        # Hide the Cancel control now that the run is over.
         self.cancel_btn.visible = False
+        self._progress_header.set_progress(
+            self._steps_done, failed=self._steps_failed
+        )
+        self._progress_header.complete(color=bar_color)
 
-        self._form_section.visible = False
-        self._progress_column.controls.append(ft.Container(height=8))
-        self._progress_column.controls.append(
+        # Hide the live chronological step list behind the raw-log disclosure;
+        # the report leads with the outcome and any failures.
+        self._progress_column.visible = False
+
+        report: list[ft.Control] = [banner(message, kind=kind)]
+
+        if self._failures:
+            failure_rows = [
+                status_row("failed", label, detail=err)
+                for label, err in self._failures
+            ]
+            report.append(ft.Container(height=8))
+            report.append(
+                section_header(
+                    "Failed steps", f"{len(self._failures)} step(s) need attention"
+                )
+            )
+            report.extend(failure_rows)
+
+        report.append(ft.Container(height=8))
+        report.append(RawLogPanel(lambda: "\n".join(self._run_log) or "(no steps)"))
+        report.append(ft.Container(height=12))
+        report.append(
             ft.Row(
                 [
-                    ft.Icon(icon_name, color=status_color),
-                    ft.Text(message, color=status_color, weight=ft.FontWeight.W_600),
-                ]
+                    ft.OutlinedButton(
+                        content=ft.Text("Copy log", color=TEXT_SECONDARY),
+                        style=ft.ButtonStyle(
+                            side=ft.BorderSide(1, BORDER),
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
+                        height=42,
+                        on_click=self._on_copy_log,
+                    ),
+                    ft.OutlinedButton(
+                        content=ft.Text("Export report (CSV)", color=TEXT_SECONDARY),
+                        style=ft.ButtonStyle(
+                            side=ft.BorderSide(1, BORDER),
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
+                        height=42,
+                        on_click=self._on_export_report,
+                    ),
+                    ft.ElevatedButton(
+                        content=ft.Text(
+                            "Return to Home",
+                            color=TEXT_PRIMARY,
+                            weight=ft.FontWeight.W_600,
+                        ),
+                        bgcolor=SECONDARY,
+                        style=ft.ButtonStyle(
+                            shape=ft.RoundedRectangleBorder(radius=8)
+                        ),
+                        height=42,
+                        on_click=lambda _: self.push_route("/home"),
+                    ),
+                ],
+                spacing=10,
             )
         )
-        self._progress_column.controls.append(
-            ft.ElevatedButton(
-                content=ft.Text(
-                    "Return to Home", color=TEXT_PRIMARY, weight=ft.FontWeight.W_600
-                ),
-                bgcolor=SECONDARY,
-                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)),
-                height=42,
-                on_click=lambda _: self.push_route("/home"),
-            )
+        self._run_section.controls.append(
+            ft.Column(report, spacing=8, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
         )
         page.update()
+
+    async def _on_copy_log(self, e):
+        try:
+            await e.page.clipboard.set("\n".join(self._run_log))
+            show_toast(e.page, "Run log copied to clipboard.", kind="success")
+        except Exception:
+            show_toast(e.page, "Couldn't access the clipboard.", kind="warning")
+
+    def _on_export_report(self, e):
+        rows = [
+            {
+                "Step": label,
+                "Result": "FAILED",
+                "Detail": err,
+            }
+            for label, err in self._failures
+        ]
+        # Include the full chronological log so a clean run still exports.
+        for line in self._run_log:
+            result = "FAILED" if line.startswith("[FAIL]") else "OK"
+            rows.append({"Step": line, "Result": result, "Detail": ""})
+        try:
+            path = export_csv(
+                rows, ["Step", "Result", "Detail"], "commission_report"
+            )
+            show_toast(e.page, f"Report saved to {path}", kind="success", duration_ms=4000)
+        except Exception as ex:
+            show_alert(e.page, "Export Failed", str(ex))
 
     def _on_cancel(self, e):
         """Cancel button: trip the token and disable further clicks.
@@ -1267,11 +1370,22 @@ class CommissionView(ShellView):
             )
             step_text.value = f"{label} — done"
             step_text.color = SECONDARY
+            self._steps_done += 1
+            self._run_log.append(f"[ok]   {label}")
+            self._progress_header.set_progress(
+                self._steps_done, failed=self._steps_failed
+            )
             page.update()
             return True, result
         except Exception as ex:
             step_row.controls[0] = ft.Icon(ft.Icons.ERROR, color=ERROR, size=18)
             step_text.value = f"{label} — failed: {ex}"
             step_text.color = ERROR
+            self._steps_failed += 1
+            self._failures.append((label, str(ex)))
+            self._run_log.append(f"[FAIL] {label}: {ex}")
+            self._progress_header.set_progress(
+                self._steps_done, failed=self._steps_failed
+            )
             page.update()
             return False, None

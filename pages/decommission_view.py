@@ -35,10 +35,18 @@ from constants import (
     TEXT_SECONDARY,
     WARNING,
 )
-from components import Stepper, banner, stat_row
+from components import (
+    ProgressHeader,
+    Stepper,
+    banner,
+    section_header,
+    stat_row,
+    status_row,
+)
 from pages.app_shell import ShellView
 from utils.cancellation import CancellationToken
 from utils.executor import _executor
+from utils.export import export_csv
 from utils.logger import log_system
 from utils.session import get_external_client, get_internal_client, set_external_client
 from utils.ui_utils import set_button_loading, show_alert, show_toast
@@ -997,6 +1005,11 @@ class DecommissionView(ShellView):
             self._category_rows[category] = row
             rows.append(row["tile"])
 
+        # Determinate progress — the asset count is known up front.
+        self._progress_header = ProgressHeader(determinate=True)
+        self._progress_header.set_progress(
+            0, sum(len(self._assets[c]) for c in planned), failed=0
+        )
         self._processing_status = ft.Text(
             f"Deleting {sum(len(self._assets[c]) for c in planned)} assets "
             f"across {len(planned)} categories...",
@@ -1019,6 +1032,7 @@ class DecommissionView(ShellView):
                 "Click a category to expand its per-item detail. "
                 "Cancel stops after the current item completes.",
             ),
+            self._progress_header,
             self._processing_status,
             ft.Container(height=10),
             ft.Column(rows, spacing=4),
@@ -1061,6 +1075,7 @@ class DecommissionView(ShellView):
         )
 
         deleted_total = 0
+        failed_total = 0
         cancelled = False
         for category in planned:
             if cancelled:
@@ -1096,6 +1111,11 @@ class DecommissionView(ShellView):
             self._results[category] = (success, len(items))
             deleted_total += success
             failed = len(items) - success
+            if not cancelled:
+                failed_total += failed
+            self._progress_header.set_progress(
+                deleted_total, grand_total, failed=failed_total
+            )
 
             if cancelled:
                 self._set_category_state(category, "cancelled")
@@ -1135,6 +1155,16 @@ class DecommissionView(ShellView):
                 "assets deleted ===",
                 level="WARN" if deleted_total != grand_total else "INFO",
             )
+
+        # Stash the run totals for the report and fill the progress bar.
+        self._run_deleted = deleted_total
+        self._run_total = grand_total
+        self._run_failed = failed_total
+        self._run_cancelled = cancelled
+        bar_color = (
+            WARNING if (cancelled or failed_total) else SECONDARY
+        )
+        self._progress_header.complete(color=bar_color)
 
         self._state = COMPLETE
         self._stepper.set_active(_STATE_STEP[COMPLETE])
@@ -1292,6 +1322,7 @@ class DecommissionView(ShellView):
 
     def _render_complete(self):
         rows = []
+        failures = []
         total_success = 0
         total_items = 0
         skipped = bool(self._cancelled_at)
@@ -1350,6 +1381,16 @@ class DecommissionView(ShellView):
                     spacing=10,
                 )
             )
+            # Surface anything that didn't fully delete (and wasn't a pure
+            # skip) in a failures-first section.
+            if not skipped_cat and success < total:
+                failures.append(
+                    status_row(
+                        "failed" if success == 0 else "partial",
+                        category,
+                        detail=f"{success}/{total} deleted",
+                    )
+                )
 
         if skipped:
             title = f"Decommission Cancelled at {self._cancelled_at}"
@@ -1365,23 +1406,98 @@ class DecommissionView(ShellView):
                 f"{total_success}/{total_items} total assets deleted successfully."
             )
 
-        self._content_area.controls = [
-            ft.Text(
-                title,
-                size=18,
-                color=overall_color,
-                weight=ft.FontWeight.W_600,
-            ),
-            ft.Text(subtitle, size=13, color=TEXT_SECONDARY),
-            ft.Container(height=15),
-            ft.Column(rows, spacing=8),
-            ft.Container(height=20),
-            _make_button(
-                "Return to Home",
-                lambda _: self.push_route("/home"),
-                bgcolor=SECONDARY,
-            ),
+        report_kind = "warning" if (skipped or overall_color == WARNING) else "success"
+        controls: list[ft.Control] = [
+            *_section_heading(title),
+            banner(subtitle, kind=report_kind),
         ]
+        if failures:
+            controls.append(ft.Container(height=8))
+            controls.append(
+                section_header(
+                    "Needs attention",
+                    f"{len(failures)} categor"
+                    f"{'ies' if len(failures) != 1 else 'y'} did not fully delete",
+                )
+            )
+            controls.extend(failures)
+        controls.append(ft.Container(height=12))
+        controls.append(section_header("All categories"))
+        controls.append(ft.Column(rows, spacing=8))
+        controls.append(ft.Container(height=20))
+        controls.append(
+            ft.Row(
+                [
+                    ft.OutlinedButton(
+                        content=ft.Text("Copy log", color=TEXT_SECONDARY),
+                        style=ft.ButtonStyle(
+                            side=ft.BorderSide(1, BORDER),
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
+                        height=42,
+                        on_click=self._on_copy_report,
+                    ),
+                    ft.OutlinedButton(
+                        content=ft.Text("Export report (CSV)", color=TEXT_SECONDARY),
+                        style=ft.ButtonStyle(
+                            side=ft.BorderSide(1, BORDER),
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
+                        height=42,
+                        on_click=self._on_export_report,
+                    ),
+                    _make_button(
+                        "Return to Home",
+                        lambda _: self.push_route("/home"),
+                        bgcolor=SECONDARY,
+                    ),
+                ],
+                spacing=10,
+            )
+        )
+        self._content_area.controls = controls
+
+    # ------------------------------------------------------------------
+    # Report export
+    # ------------------------------------------------------------------
+
+    def _report_rows(self) -> list[dict]:
+        """Per-category deletion results as flat dict rows."""
+        return [
+            {
+                "Category": category,
+                "Deleted": success,
+                "Total": total,
+                "Status": "OK" if success == total else "INCOMPLETE",
+            }
+            for category, (success, total) in self._results.items()
+        ]
+
+    def _report_text(self) -> str:
+        return "\n".join(
+            f"{r['Status']:11} {r['Category']}: {r['Deleted']}/{r['Total']}"
+            for r in self._report_rows()
+        )
+
+    async def _on_copy_report(self, e):
+        try:
+            await e.page.clipboard.set(self._report_text())
+            show_toast(e.page, "Report copied to clipboard.", kind="success")
+        except Exception:
+            show_toast(e.page, "Couldn't access the clipboard.", kind="warning")
+
+    def _on_export_report(self, e):
+        try:
+            path = export_csv(
+                self._report_rows(),
+                ["Category", "Deleted", "Total", "Status"],
+                "decommission_report",
+            )
+            show_toast(
+                e.page, f"Report saved to {path}", kind="success", duration_ms=4000
+            )
+        except Exception as ex:
+            show_alert(e.page, "Export Failed", str(ex))
 
     def _category_position(self, category: str) -> int:
         """Return a category's position in DELETION_ORDER (or -1 if absent)."""

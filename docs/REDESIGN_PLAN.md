@@ -31,9 +31,9 @@ the navigation (page.views), window config, and View lifecycle are unchanged.
 - [x] T3.2 Commission: Configure → Review (pre-flight summary of what will be created) → Run → Report, driven by the shared stepper
 - [x] T3.3 Decommission: Scan → Review → Select → Confirm (new destructive summary + danger banner before deletion) → Run → Report, with the shared stepper across all states
 
-## Phase 4 · Progress & report screens (review gate)
-- [ ] T4.1 Structured progress (determinate bar, x/y · n failed), collapsible groups, failures-first
-- [ ] T4.2 Replace raw log dumps (behind "view raw log"); Copy log / Export report (CSV/JSON)
+## Phase 4 · Progress & report screens (review gate) — DONE
+- [x] T4.1 Shared progress primitives: `ProgressHeader` (determinate for decommission / indeterminate for commission, with "x/y · n failed"), `status_row`, `RawLogPanel`. Reports lead with a result banner and a failures-first section; decommission keeps its collapsible per-category groups.
+- [x] T4.2 Commission's flat run log moved behind a "View raw log" disclosure; Copy log + Export report (CSV) on both tools (`utils/export.py`, ~/Downloads).
 
 ## Phase 5 · Polish
 - [ ] T5.1 Light/dark theme toggle + respect OS preference
