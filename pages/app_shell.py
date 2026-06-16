@@ -143,13 +143,23 @@ class ShellView(ft.View):
                     color=theme.TEXT_SECONDARY,
                 )
             )
+        # Title on the left, theme toggle pinned to the top-right of the
+        # content area (a conventional spot for a global appearance control).
+        header_row = ft.Row(
+            [
+                ft.Column(header_texts, spacing=theme.SPACE_XS),
+                self._build_theme_toggle(),
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+        )
         return ft.Container(
             expand=True,
             padding=ft.Padding.all(theme.SPACE_2XL),
             content=ft.Column(
                 [
                     self._session_banner,
-                    ft.Column(header_texts, spacing=theme.SPACE_XS),
+                    header_row,
                     ft.Container(height=theme.SPACE_XL),
                     ft.Container(content=body, expand=True),
                 ],
@@ -167,12 +177,12 @@ class ShellView(ft.View):
             [
                 ft.Text(
                     "vCommander",
-                    size=theme.FONT_HEADING,
+                    size=theme.FONT_TITLE,
                     color=theme.ACCENT,
                     weight=theme.WEIGHT_BOLD,
                 ),
                 ft.Text(
-                    f"v{APP_VERSION}", size=theme.FONT_MICRO, color=theme.TEXT_MUTED
+                    f"v{APP_VERSION}", size=theme.FONT_CAPTION, color=theme.TEXT_MUTED
                 ),
             ],
             spacing=2,
@@ -237,11 +247,7 @@ class ShellView(ft.View):
             content=ft.Column(
                 [
                     ft.Container(
-                        content=ft.Row(
-                            [wordmark, self._build_theme_toggle()],
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
+                        content=wordmark,
                         padding=ft.Padding.symmetric(horizontal=theme.SPACE_MD),
                     ),
                     ft.Container(height=theme.SPACE_2XL),
@@ -259,14 +265,14 @@ class ShellView(ft.View):
             border_radius=theme.RADIUS_MD,
             bgcolor=theme.palette.tint(theme.ACCENT, 0.13) if active else None,
             padding=ft.Padding.symmetric(
-                horizontal=theme.SPACE_MD, vertical=theme.SPACE_SM + 2
+                horizontal=theme.SPACE_MD, vertical=theme.SPACE_MD
             ),
             content=ft.Row(
                 [
-                    ft.Icon(icon, size=18, color=brand),
+                    ft.Icon(icon, size=20, color=brand),
                     ft.Text(
                         label,
-                        size=theme.FONT_BODY,
+                        size=16,
                         color=theme.TEXT_PRIMARY if active else theme.TEXT_SECONDARY,
                         weight=theme.WEIGHT_SEMIBOLD
                         if active
