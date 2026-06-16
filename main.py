@@ -9,8 +9,12 @@ and mounts the LoginView. Each view receives `push_route` and
 import asyncio
 import webbrowser
 
+import sys
+
 import flet as ft
 
+import constants
+import theme
 from constants import (
     APP_VERSION,
     BG,
@@ -19,15 +23,38 @@ from constants import (
     MIN_WIDTH,
     WARNING,
 )
+from pages import (
+    app_shell,
+    commission_view,
+    decommission_view,
+    home_view,
+    login_view,
+    two_factor_view,
+    users_view,
+)
 from pages.commission_view import CommissionView
 from pages.decommission_view import DecommissionView
 from pages.home_view import HomeView
 from pages.login_view import LoginView
 from pages.two_factor_view import TwoFactorView
 from pages.users_view import UsersView
+from utils import prefs, ui_utils
 from utils.logger import get_log_path, log_api_call
 from utils.session import clear_session, is_session_expired, session_active
 from utils.version_check import check_for_update
+
+# Modules that imported flat color names by value and therefore need their
+# globals re-pointed at the active palette on a theme switch.
+_THEMED_MODULES = [
+    constants,
+    ui_utils,
+    login_view,
+    two_factor_view,
+    home_view,
+    commission_view,
+    decommission_view,
+    users_view,
+]
 
 # Maps a route string to the View class that renders it. Adding a new
 # screen is a matter of writing a `View` subclass and adding one entry.
@@ -56,8 +83,6 @@ async def main(page: ft.Page):
     print(f"Logs → {get_log_path()}")
 
     page.title = f"vCommander {BUILD_VARIANT_LABEL}v{APP_VERSION}"
-    page.bgcolor = BG
-    page.theme_mode = ft.ThemeMode.DARK
     page.window.min_width = MIN_WIDTH
     page.window.min_height = MIN_HEIGHT
     page.window.width = MIN_WIDTH
@@ -65,6 +90,46 @@ async def main(page: ft.Page):
     page.padding = 0
 
     history: list[str] = []
+
+    def _set_palette(mode: str):
+        """Switch the active palette and re-point every themed module at it.
+
+        Does not rebuild — used at startup (before the first view) and as the
+        first half of a runtime toggle.
+        """
+        theme.set_theme_mode(mode)
+        theme.apply_to([*_THEMED_MODULES, sys.modules[__name__]])
+        page.theme_mode = (
+            ft.ThemeMode.DARK if mode == "dark" else ft.ThemeMode.LIGHT
+        )
+        page.bgcolor = theme.BG
+
+    def rebuild_current():
+        """Re-instantiate the current route's view (picks up the new palette)."""
+        if not history:
+            return
+        route = history[-1]
+        page.views.clear()
+        page.views.append(
+            ROUTE_MAP[route](push_route=push_route, pop_route=pop_route)
+        )
+        page.update()
+
+    def toggle_theme():
+        new_mode = "light" if theme.palette.mode == "dark" else "dark"
+        _set_palette(new_mode)
+        prefs.set_theme_pref(new_mode)
+        rebuild_current()
+
+    app_shell.set_theme_toggle(toggle_theme)
+
+    # Startup theme: saved preference, else follow the OS brightness.
+    startup_mode = prefs.get_theme_pref()
+    if startup_mode is None:
+        startup_mode = (
+            "light" if page.platform_brightness == ft.Brightness.LIGHT else "dark"
+        )
+    _set_palette(startup_mode)
 
     def push_route(route: str):
         """Navigate forward by replacing the current view with `route`.

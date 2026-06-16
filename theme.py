@@ -220,16 +220,15 @@ def set_theme_mode(mode: str) -> None:
     _bind_flat_names()
 
 
-def _bind_flat_names() -> None:
-    """Mirror the active palette's fields as flat module-level constants.
+def flat_tokens() -> dict:
+    """The active palette as a flat {NAME: value} map.
 
-    Provides backwards-compatible names (BG, SURFACE, BORDER, PRIMARY, …)
-    so existing call sites keep working while views migrate to reading
-    `theme.palette.*` directly.
+    Includes the semantic names plus the legacy aliases (PRIMARY/SECONDARY/
+    ERROR) and the common CARD_SHADOW, so callers that imported any of these
+    can be re-pointed at the current palette on a theme switch.
     """
-    module = sys.modules[__name__]
     p = palette
-    flat = {
+    return {
         "BG": p.bg,
         "SURFACE": p.surface,
         "SURFACE_VARIANT": p.surface_variant,
@@ -253,9 +252,35 @@ def _bind_flat_names() -> None:
         "PRIMARY": p.accent,
         "SECONDARY": p.success,
         "ERROR": p.danger,
+        "CARD_SHADOW": elevation(1),
     }
-    for name, value in flat.items():
+
+
+def _bind_flat_names() -> None:
+    """Mirror the active palette's fields as flat module-level constants.
+
+    Provides backwards-compatible names (BG, SURFACE, BORDER, PRIMARY, …)
+    so existing call sites keep working while views migrate to reading
+    `theme.palette.*` directly.
+    """
+    module = sys.modules[__name__]
+    for name, value in flat_tokens().items():
         setattr(module, name, value)
+
+
+def apply_to(modules) -> None:
+    """Re-point the flat color names that `modules` imported at the palette.
+
+    Modules import color tokens by value (`from constants import BG`), so a
+    `set_theme_mode` switch doesn't reach them. After switching, call this
+    with the affected modules to rebind only the names each one actually
+    imported (guarded by hasattr), then rebuild the view tree.
+    """
+    tokens = flat_tokens()
+    for mod in modules:
+        for name, value in tokens.items():
+            if hasattr(mod, name):
+                setattr(mod, name, value)
 
 
 _bind_flat_names()

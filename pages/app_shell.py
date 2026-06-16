@@ -50,6 +50,16 @@ NAV_ITEMS = [
 
 _SIDEBAR_WIDTH = 232
 
+# Set by main.py: a zero-arg callable that flips light/dark and rebuilds the
+# view tree. Kept as a module hook so the shell can trigger a theme switch
+# without importing main (which would be circular).
+_THEME_TOGGLE = None
+
+
+def set_theme_toggle(fn) -> None:
+    global _THEME_TOGGLE
+    _THEME_TOGGLE = fn
+
 
 class ShellView(ft.View):
     def __init__(
@@ -159,7 +169,12 @@ class ShellView(ft.View):
                         horizontal=theme.SPACE_MD, vertical=theme.SPACE_XS
                     ),
                 ),
-                ft.Container(height=theme.SPACE_SM),
+                ft.Container(
+                    content=ft.Row(
+                        [self._build_theme_toggle()],
+                        alignment=ft.MainAxisAlignment.END,
+                    ),
+                ),
                 ft.OutlinedButton(
                     content=ft.Row(
                         [
@@ -268,6 +283,22 @@ class ShellView(ft.View):
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
         )
+
+    def _build_theme_toggle(self) -> ft.Control:
+        is_dark = theme.palette.mode == "dark"
+        return ft.IconButton(
+            icon=ft.Icons.LIGHT_MODE_ROUNDED
+            if is_dark
+            else ft.Icons.DARK_MODE_ROUNDED,
+            icon_color=theme.TEXT_SECONDARY,
+            icon_size=18,
+            tooltip="Switch to light theme" if is_dark else "Switch to dark theme",
+            on_click=self._on_toggle_theme,
+        )
+
+    def _on_toggle_theme(self, e):
+        if _THEME_TOGGLE is not None:
+            _THEME_TOGGLE()
 
     def _org_name(self) -> str:
         creds = load_credentials() or {}
