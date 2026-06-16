@@ -79,7 +79,7 @@ from components import (
     status_row,
     stat_row,
 )
-from pages.app_shell import ShellView
+from pages.app_shell import ToolView
 from utils.cancellation import CancellationToken
 from utils.executor import _executor
 from utils.export import export_csv
@@ -93,14 +93,13 @@ _ASSETS_DIR = os.path.join(
 _COMMISSION_STEPS = ["Configure", "Review", "Run", "Report"]
 
 
-class CommissionView(ShellView):
-    def __init__(self, push_route, pop_route, **kwargs):
+class CommissionView(ToolView):
+    def __init__(self, push_route, pop_route):
         super().__init__(
+            push_route,
+            pop_route,
             route="/commission",
             title="Commission Organization",
-            push_route=push_route,
-            pop_route=pop_route,
-            **kwargs,
         )
         self._kits: dict[str, dict[str, str]] = {}
         self._device_fields: dict[str, ft.TextField] = {}
@@ -283,7 +282,7 @@ class CommissionView(ShellView):
             expand=True,
         )
 
-        self.render(form_card)
+        self.mount(form_card)
 
     def _make_device_field(self, device_type: str, expand=None) -> ft.TextField:
         field = ft.TextField(

@@ -43,7 +43,7 @@ from components import (
     stat_row,
     status_row,
 )
-from pages.app_shell import ShellView
+from pages.app_shell import ToolView
 from utils.cancellation import CancellationToken
 from utils.executor import _executor
 from utils.export import export_csv
@@ -137,14 +137,13 @@ def _section_heading(title: str, subtitle: str | None = None) -> list[ft.Control
     return out
 
 
-class DecommissionView(ShellView):
-    def __init__(self, push_route, pop_route, **kwargs):
+class DecommissionView(ToolView):
+    def __init__(self, push_route, pop_route):
         super().__init__(
+            push_route,
+            pop_route,
             route="/decommission",
             title="Decommission Organization",
-            push_route=push_route,
-            pop_route=pop_route,
-            **kwargs,
         )
         self._state = SCAN
         self._assets: dict[str, list[dict]] = {}
@@ -195,7 +194,7 @@ class DecommissionView(ShellView):
             expand=True,
         )
 
-        self.render(card)
+        self.mount(card)
 
         self._render_state()
 

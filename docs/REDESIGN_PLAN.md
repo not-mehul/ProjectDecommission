@@ -50,3 +50,13 @@ Rendered every view/state with a headless browser (tools/shoot_app.py) and revie
 - [x] Moved the light/dark toggle from the sidebar footer to the sidebar header (next to the wordmark)
 - [x] Commission Configure: Template/Kit now a clean 50/50 (dropdowns expand)
 - [x] Decommission complete banner copy: partial runs read "X/Y deleted — N could not be removed" (was "deleted successfully" under a warning icon)
+
+## Phase 7 · Navigation rework (persistent shell) — DONE
+Replaced the per-view sidebar + page.views route stack with one persistent shell:
+- [x] `AppShell` is mounted once; tools are lightweight `ToolView`s whose body is
+      hosted in a content area. Switching tools calls `shell.show(route)` and
+      swaps only the content — the sidebar stays constant, no page transition.
+- [x] Esc uses route-aware `back()` (no growing history): no-op on Home/public,
+      tool→Home, 2FA→login. Fixes "Esc keeps going back on Home".
+- [x] Cmd/Ctrl-K gated to authenticated tool routes only — can no longer open on
+      the 2FA screen (which previously let you bypass MFA into the app).

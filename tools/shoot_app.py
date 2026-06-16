@@ -18,6 +18,7 @@ import flet as ft
 import constants
 import theme
 from constants import TEMPLATE_FIELDS
+from pages import app_shell
 from pages import (
     commission_view as cv,
 )
@@ -48,20 +49,16 @@ _noop = lambda *a, **k: None  # noqa: E731
 _SERIAL = "ABCD-12345678"
 
 
-def _build(page, key):
-    if key == "login":
-        return lv.LoginView(push_route=_noop, pop_route=_noop)
-    if key == "twofa":
-        return tv.TwoFactorView(push_route=_noop, pop_route=_noop)
-    if key == "home":
-        return hv.HomeView(push_route=_noop, pop_route=_noop)
-    if key == "commission":
-        return cv.CommissionView(push_route=_noop, pop_route=_noop)
-    if key == "decommission":
-        return dv.DecommissionView(push_route=_noop, pop_route=_noop)
-    if key == "users":
-        return uv.UsersView(push_route=_noop, pop_route=_noop)
-    raise SystemExit(f"unknown SHOT_VIEW {key}")
+_PUBLIC_BUILDERS = {
+    "login": lambda: lv.LoginView(_noop, _noop),
+    "twofa": lambda: tv.TwoFactorView(_noop, _noop),
+}
+_TOOL_BUILDERS = {
+    "home": lambda: hv.HomeView(_noop, _noop),
+    "commission": lambda: cv.CommissionView(_noop, _noop),
+    "decommission": lambda: dv.DecommissionView(_noop, _noop),
+    "users": lambda: uv.UsersView(_noop, _noop),
+}
 
 
 def _fake_assets():
@@ -159,10 +156,25 @@ def main(page: ft.Page):
     page.bgcolor = theme.BG
     page.padding = 0
     session.start_session()
-    view = _build(page, VIEW)
-    page.views.append(view)
+    if VIEW in _PUBLIC_BUILDERS:
+        page.views.append(_PUBLIC_BUILDERS[VIEW]())
+        page.update()
+        return
+    if VIEW not in _TOOL_BUILDERS:
+        raise SystemExit(f"unknown SHOT_VIEW {VIEW}")
+    # Mount the tool inside the persistent shell (same as the real app).
+    holder = {}
+
+    def factory(route):
+        tool = _TOOL_BUILDERS[VIEW]()
+        holder["tool"] = tool
+        return tool
+
+    shell = app_shell.AppShell(navigate=_noop, tool_factory=factory)
+    page.views.append(shell)
     page.update()
-    _drive(page, view, VIEW, STATE)
+    shell.show("/" + VIEW)
+    _drive(page, holder["tool"], VIEW, STATE)
     page.update()
 
 

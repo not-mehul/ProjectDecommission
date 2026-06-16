@@ -29,7 +29,7 @@ from constants import (
     load_internal_invite_defaults,
 )
 from components import Stepper, ghost_button
-from pages.app_shell import ShellView
+from pages.app_shell import ToolView
 from utils.db import load_import_settings, save_import_settings
 from utils.executor import _executor
 from utils.session import get_external_client, get_internal_client, set_external_client
@@ -97,14 +97,13 @@ def _strip(value: str | None) -> str:
     return (value or "").strip()
 
 
-class UsersView(ShellView):
-    def __init__(self, push_route, pop_route, **kwargs):
+class UsersView(ToolView):
+    def __init__(self, push_route, pop_route):
         super().__init__(
+            push_route,
+            pop_route,
             route="/users",
             title="User Management",
-            push_route=push_route,
-            pop_route=pop_route,
-            **kwargs,
         )
         self._current_step = 0
         self._sites: list[dict] = []
@@ -154,7 +153,7 @@ class UsersView(ShellView):
             expand=True,
         )
 
-        self.render(card)
+        self.mount(card)
 
     # ------------------------------------------------------------------
     # Step indicator strip

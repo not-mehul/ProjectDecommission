@@ -10,7 +10,7 @@ import flet as ft
 
 import theme
 from components import banner, card
-from pages.app_shell import ShellView
+from pages.app_shell import ToolView
 
 # (route, title, icon, brand tint, description) for the three tool cards.
 _TOOLS = [
@@ -38,15 +38,14 @@ _TOOLS = [
 ]
 
 
-class HomeView(ShellView):
-    def __init__(self, push_route, pop_route, **kwargs):
+class HomeView(ToolView):
+    def __init__(self, push_route, pop_route):
         super().__init__(
+            push_route,
+            pop_route,
             route="/home",
             title="Home",
             subtitle="Pick a tool to get started.",
-            push_route=push_route,
-            pop_route=pop_route,
-            **kwargs,
         )
         self._build_ui()
 
@@ -67,7 +66,7 @@ class HomeView(ShellView):
                 ),
             ],
         )
-        self.render(body)
+        self.mount(body)
 
     def _tool_card(self, route, title, icon, brand, description) -> ft.Control:
         inner = card(

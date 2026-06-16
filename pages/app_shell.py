@@ -1,19 +1,15 @@
 """Persistent application shell.
 
-`ShellView` is the base class for every authenticated screen. It renders a
-fixed left sidebar (brand wordmark, tool navigation, org + session chips,
-logout) beside a content area with a title/subtitle header, and runs the
-live session countdown so it ticks on *every* tool screen rather than only
-Home.
+`AppShell` is a single `ft.View` mounted once for the authenticated session.
+It owns the fixed left sidebar (wordmark, tool nav, org/session chips, logout),
+the content header (title + theme toggle), the pre-expiry session banner, and
+the live session countdown. Navigating between tools calls `show(route)`, which
+swaps only the content host — the sidebar stays put and there's no page-stack
+transition.
 
-A tool view subclasses `ShellView`, builds its body control, and calls
-`self.render(body)` with a title. The public screens (login, 2FA) stay as
-plain `ft.View`s — they have no shell.
-
-Why a base class rather than a wrapper function: the session countdown needs
-`did_mount`/`will_unmount` lifecycle, and centralizing it here means the four
-tool screens don't each re-implement the timer + warning + auto-logout logic
-that previously lived only in HomeView.
+Tool screens are lightweight `ToolView`s: they build a body control and expose
+`title`/`subtitle`/`body`; the shell hosts that body. The public screens
+(login, 2FA) remain standalone `ft.View`s with no shell.
 """
 
 from __future__ import annotations
@@ -60,28 +56,112 @@ def set_theme_toggle(fn) -> None:
     _THEME_TOGGLE = fn
 
 
-class ShellView(ft.View):
+class ToolView:
+    """Base for the authenticated tool screens.
+
+    A tool builds its body control and calls `mount(body)`. It is NOT an
+    `ft.Control`; the shell hosts `self.body` and sets `self.page` so the
+    tool's `getattr(self, "page", ...)` update guards keep working.
+    """
+
     def __init__(
         self,
+        push_route,
+        pop_route,
         *,
         route: str,
         title: str,
-        push_route,
-        pop_route,
         subtitle: str | None = None,
-        **kwargs,
     ):
-        super().__init__(route=route, bgcolor=theme.BG, padding=0, **kwargs)
-        self.active_route = route
-        self.title_text = title
-        self.subtitle_text = subtitle
         self.push_route = push_route
         self.pop_route = pop_route
+        self.route = route
+        self.title = title
+        self.subtitle = subtitle
+        self.page = None
+        self.body: ft.Control | None = None
+
+    def mount(self, body: ft.Control):
+        self.body = body
+
+
+class AppShell(ft.View):
+    def __init__(self, *, navigate, tool_factory):
+        super().__init__(route="/app", bgcolor=theme.BG, padding=0)
+        # navigate(route): nav clicks, logout, and session expiry route through
+        # this. tool_factory(route) -> ToolView builds the screen to host.
+        self._navigate = navigate
+        self._tool_factory = tool_factory
+        self._active_route: str | None = None
+        self._timer_task: asyncio.Task | None = None
+
         self._session_text = ft.Text(
             "", size=theme.FONT_CAPTION, color=theme.TEXT_SECONDARY
         )
-        self._timer_task: asyncio.Task | None = None
-        # Non-blocking pre-expiry banner (replaces the old modal warning).
+        self._title_text = ft.Text(
+            "", size=theme.FONT_TITLE, color=theme.TEXT_PRIMARY,
+            weight=theme.WEIGHT_SEMIBOLD,
+        )
+        self._subtitle_text = ft.Text(
+            "", size=theme.FONT_CAPTION, color=theme.TEXT_SECONDARY, visible=False
+        )
+        self._content_host = ft.Container(expand=True)
+        self._nav_column = ft.Column(spacing=theme.SPACE_XS)
+
+        self._build_session_banner()
+        self.controls = [
+            ft.Row(
+                [self._build_sidebar(), self._build_content()],
+                spacing=0,
+                expand=True,
+            )
+        ]
+        self._render_nav()
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+    def show(self, route: str):
+        """Swap the content area to `route`'s tool (sidebar stays constant)."""
+        tool = self._tool_factory(route)
+        tool.page = self._get_page()
+        self._title_text.value = tool.title
+        self._subtitle_text.value = tool.subtitle or ""
+        self._subtitle_text.visible = bool(tool.subtitle)
+        self._content_host.content = tool.body
+        self._active_route = route
+        self._render_nav()
+        self._safe_update()
+
+    # ------------------------------------------------------------------
+    # Content area
+    # ------------------------------------------------------------------
+    def _build_content(self) -> ft.Control:
+        header_row = ft.Row(
+            [
+                ft.Column(
+                    [self._title_text, self._subtitle_text], spacing=theme.SPACE_XS
+                ),
+                self._build_theme_toggle(),
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+        )
+        return ft.Container(
+            expand=True,
+            padding=ft.Padding.all(theme.SPACE_2XL),
+            content=ft.Column(
+                [
+                    self._session_banner,
+                    header_row,
+                    ft.Container(height=theme.SPACE_XL),
+                    self._content_host,
+                ],
+                expand=True,
+            ),
+        )
+
+    def _build_session_banner(self):
         self._session_banner_text = ft.Text(
             "", size=theme.FONT_CAPTION, color=theme.TEXT_PRIMARY, expand=True
         )
@@ -114,65 +194,9 @@ class ShellView(ft.View):
         )
 
     # ------------------------------------------------------------------
-    # Composition
-    # ------------------------------------------------------------------
-    def render(self, body: ft.Control):
-        """Mount `body` inside the shell. Call this at the end of _build_ui."""
-        self.controls = [
-            ft.Row(
-                [self._build_sidebar(), self._build_content(body)],
-                spacing=0,
-                expand=True,
-            )
-        ]
-
-    def _build_content(self, body: ft.Control) -> ft.Control:
-        header_texts = [
-            ft.Text(
-                self.title_text,
-                size=theme.FONT_TITLE,
-                color=theme.TEXT_PRIMARY,
-                weight=theme.WEIGHT_SEMIBOLD,
-            )
-        ]
-        if self.subtitle_text:
-            header_texts.append(
-                ft.Text(
-                    self.subtitle_text,
-                    size=theme.FONT_CAPTION,
-                    color=theme.TEXT_SECONDARY,
-                )
-            )
-        # Title on the left, theme toggle pinned to the top-right of the
-        # content area (a conventional spot for a global appearance control).
-        header_row = ft.Row(
-            [
-                ft.Column(header_texts, spacing=theme.SPACE_XS),
-                self._build_theme_toggle(),
-            ],
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-            vertical_alignment=ft.CrossAxisAlignment.START,
-        )
-        return ft.Container(
-            expand=True,
-            padding=ft.Padding.all(theme.SPACE_2XL),
-            content=ft.Column(
-                [
-                    self._session_banner,
-                    header_row,
-                    ft.Container(height=theme.SPACE_XL),
-                    ft.Container(content=body, expand=True),
-                ],
-                expand=True,
-            ),
-        )
-
-    # ------------------------------------------------------------------
     # Sidebar
     # ------------------------------------------------------------------
     def _build_sidebar(self) -> ft.Control:
-        nav = [self._nav_item(*item) for item in NAV_ITEMS]
-
         wordmark = ft.Column(
             [
                 ft.Text(
@@ -238,9 +262,7 @@ class ShellView(ft.View):
         return ft.Container(
             width=_SIDEBAR_WIDTH,
             bgcolor=theme.SURFACE,
-            border=ft.Border.only(
-                right=ft.BorderSide(1, theme.BORDER_SUBTLE)
-            ),
+            border=ft.Border.only(right=ft.BorderSide(1, theme.BORDER_SUBTLE)),
             padding=ft.Padding.symmetric(
                 horizontal=theme.SPACE_MD, vertical=theme.SPACE_XL
             ),
@@ -251,7 +273,7 @@ class ShellView(ft.View):
                         padding=ft.Padding.symmetric(horizontal=theme.SPACE_MD),
                     ),
                     ft.Container(height=theme.SPACE_2XL),
-                    ft.Column(nav, spacing=theme.SPACE_XS),
+                    self._nav_column,
                     ft.Container(expand=True),
                     footer,
                 ],
@@ -259,8 +281,12 @@ class ShellView(ft.View):
             ),
         )
 
+    def _render_nav(self):
+        """(Re)build the nav items to reflect the active route."""
+        self._nav_column.controls = [self._nav_item(*item) for item in NAV_ITEMS]
+
     def _nav_item(self, route, label, icon, brand) -> ft.Control:
-        active = route == self.active_route
+        active = route == self._active_route
         item = ft.Container(
             border_radius=theme.RADIUS_MD,
             bgcolor=theme.palette.tint(theme.ACCENT, 0.13) if active else None,
@@ -282,7 +308,7 @@ class ShellView(ft.View):
                 spacing=theme.SPACE_MD,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            on_click=None if active else (lambda _, r=route: self.push_route(r)),
+            on_click=None if active else (lambda _, r=route: self._navigate(r)),
             ink=not active,
             animate=ft.Animation(120, ft.AnimationCurve.EASE_IN_OUT),
         )
@@ -296,9 +322,7 @@ class ShellView(ft.View):
             if e.data == "true"
             else None
         )
-        page = getattr(self, "page", None)
-        if page:
-            page.update()
+        self._safe_update()
 
     def _chip(self, icon, text: str) -> ft.Control:
         return ft.Container(
@@ -340,8 +364,23 @@ class ShellView(ft.View):
         creds = load_credentials() or {}
         return creds.get("org_short_name") or "—"
 
+    def _get_page(self):
+        """Return the page, or None if not mounted yet (0.85 raises otherwise)."""
+        try:
+            return self.page
+        except Exception:
+            return None
+
+    def _safe_update(self):
+        page = self._get_page()
+        if page:
+            try:
+                page.update()
+            except Exception:
+                pass
+
     # ------------------------------------------------------------------
-    # Session timer (runs on every authed screen)
+    # Session timer
     # ------------------------------------------------------------------
     def did_mount(self):
         start_session()
@@ -352,31 +391,23 @@ class ShellView(ft.View):
             self._timer_task.cancel()
 
     async def _run_timer(self):
-        """Tick the sidebar session chip, warn at the threshold, log out at 0.
-
-        Every page-touching step is guarded so a tick can't fire after the
-        view unmounts during navigation (see HomeView's original notes).
-        """
         try:
             while True:
-                page = getattr(self, "page", None)
+                page = self._get_page()
                 if page is None:
                     return
                 remaining = get_session_remaining()
                 if remaining <= 0:
                     clear_session()
-                    self.push_route("/login")
+                    self._navigate("/login")
                     return
                 mins = int(remaining // 60)
                 secs = int(remaining % 60)
                 self._session_text.value = f"Session {mins:02d}:{secs:02d}"
                 in_warning = remaining <= SESSION_WARNING_MINUTES * 60
-                # Tint the chip as it nears expiry.
                 self._session_text.color = (
                     theme.WARNING if in_warning else theme.TEXT_SECONDARY
                 )
-                # Non-blocking banner instead of a modal: surface it inside the
-                # warning window with an Extend action (when extensions remain).
                 if in_warning:
                     self._session_banner_text.value = (
                         f"Your session expires in {mins:02d}:{secs:02d}."
@@ -396,12 +427,10 @@ class ShellView(ft.View):
     def _on_extend(self, e):
         if extend_session():
             self._session_banner.visible = False
-            page = getattr(self, "page", None)
-            if page:
-                page.update()
+            self._safe_update()
 
     def _on_logout(self, e):
         if self._timer_task and not self._timer_task.done():
             self._timer_task.cancel()
         clear_session()
-        self.push_route("/login")
+        self._navigate("/login")
