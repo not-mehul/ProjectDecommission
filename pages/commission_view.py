@@ -144,6 +144,7 @@ class CommissionView(ShellView):
         self.template_dropdown = ft.Dropdown(
             label="Template",
             options=template_options,
+            expand=1,
             border_color=BORDER,
             focused_border_color=PRIMARY,
             color=TEXT_PRIMARY,
@@ -157,6 +158,7 @@ class CommissionView(ShellView):
         self.kit_dropdown = ft.Dropdown(
             label="Kit",
             options=kit_options,
+            expand=1,
             border_color=BORDER,
             focused_border_color=PRIMARY,
             color=TEXT_PRIMARY,
@@ -213,10 +215,7 @@ class CommissionView(ShellView):
         self._form_section = ft.Column(
             [
                 ft.Row(
-                    [
-                        ft.Container(content=self.template_dropdown, expand=1),
-                        ft.Container(content=self.kit_dropdown, expand=1),
-                    ],
+                    [self.template_dropdown, self.kit_dropdown],
                     spacing=FIELD_SPACING,
                 ),
                 ft.Container(height=4),

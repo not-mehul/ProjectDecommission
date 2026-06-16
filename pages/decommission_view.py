@@ -1440,9 +1440,16 @@ class DecommissionView(ShellView):
             overall_ok = total_success == total_items
             title = "Decommission Complete"
             overall_color = SECONDARY if overall_ok else WARNING
-            subtitle = (
-                f"{total_success}/{total_items} total assets deleted successfully."
-            )
+            if overall_ok:
+                subtitle = (
+                    f"All {total_items} assets deleted successfully."
+                )
+            else:
+                remaining = total_items - total_success
+                subtitle = (
+                    f"{total_success}/{total_items} assets deleted — "
+                    f"{remaining} could not be removed."
+                )
 
         report_kind = "warning" if (skipped or overall_color == WARNING) else "success"
         controls: list[ft.Control] = [

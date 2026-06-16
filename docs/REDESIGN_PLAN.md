@@ -47,3 +47,6 @@ Rendered every view/state with a headless browser (tools/shoot_app.py) and revie
 - [x] Home tool cards: full descriptions, equal height (was clipped by a too-short fixed height)
 - [x] Login + 2FA cards: hug content and center (were filling full viewport height — Column mainAxisSize)
 - [x] Decommission "Assets Found": uses stat_row so non-zero counts pop and zeros recede
+- [x] Moved the light/dark toggle from the sidebar footer to the sidebar header (next to the wordmark)
+- [x] Commission Configure: Template/Kit now a clean 50/50 (dropdowns expand)
+- [x] Decommission complete banner copy: partial runs read "X/Y deleted — N could not be removed" (was "deleted successfully" under a warning icon)

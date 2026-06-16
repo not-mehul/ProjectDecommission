@@ -200,12 +200,7 @@ class ShellView(ft.View):
                         horizontal=theme.SPACE_MD, vertical=theme.SPACE_XS
                     ),
                 ),
-                ft.Container(
-                    content=ft.Row(
-                        [self._build_theme_toggle()],
-                        alignment=ft.MainAxisAlignment.END,
-                    ),
-                ),
+                ft.Container(height=theme.SPACE_SM),
                 ft.OutlinedButton(
                     content=ft.Row(
                         [
@@ -242,7 +237,11 @@ class ShellView(ft.View):
             content=ft.Column(
                 [
                     ft.Container(
-                        content=wordmark,
+                        content=ft.Row(
+                            [wordmark, self._build_theme_toggle()],
+                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
                         padding=ft.Padding.symmetric(horizontal=theme.SPACE_MD),
                     ),
                     ft.Container(height=theme.SPACE_2XL),
