@@ -42,12 +42,25 @@ class GuestAddress(NamedTuple):
 class MFARequiredError(Exception):
     """
     Raised when the API requires 2FA to complete login.
-    sms_contact contains the last digits of the SMS-receiving number, if provided.
+
+    sms_contact holds the last digits of the SMS-receiving number, if known.
+    sms_enabled / qr_enabled report which second factors the org has
+    configured so the 2FA screen can prompt for the right one (and so
+    login() knows whether to dispatch an SMS via auth/twofactor/sms/new).
     """
 
-    def __init__(self, message: str = "MFA Required", sms_contact: str | None = None):
+    def __init__(
+        self,
+        message: str = "MFA Required",
+        sms_contact: str | None = None,
+        *,
+        sms_enabled: bool = False,
+        qr_enabled: bool = False,
+    ):
         super().__init__(message)
         self.sms_contact = sms_contact
+        self.sms_enabled = sms_enabled
+        self.qr_enabled = qr_enabled
 
 
 api_region = "api"
@@ -287,6 +300,21 @@ ENDPOINTS: dict[str, Endpoint] = {
             "organizationId": "<org_id>",
             "userId": "<user_id>",
         },
+    ),
+    # Dispatches an SMS 2FA code mid-login. Lives on the vauth subdomain
+    # (not vprovision) and runs pre-auth. The login response that demands
+    # MFA no longer sends the text itself nor carries the destination
+    # digits — this endpoint does both. QR/authenticator orgs skip it.
+    "auth.twofactor.sms.new": Endpoint(
+        method="POST",
+        subdomain="vauth",
+        path="auth/twofactor/sms/new",
+        payload={
+            "email": "<email>",
+            "password": "<password>",
+            "orgShortName": "<org_short_name>",
+        },
+        response={"smsSent": "<masked_phone_digits>"},
     ),
     # ── Permissions ──────────────────────────────────────────────────
     "permissions.global_site_admin.enable": Endpoint(
