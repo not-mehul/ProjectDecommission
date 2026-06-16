@@ -180,4 +180,4 @@ async def main(page: ft.Page):
     asyncio.create_task(session_watchdog())
 
 
-ft.app(target=main)
+ft.run(main)

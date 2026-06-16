@@ -154,9 +154,9 @@ class LoginView(ft.View):
             width=720,
             bgcolor=SURFACE,
             border_radius=12,
-            border=ft.border.all(1, BORDER),
+            border=ft.Border.all(1, BORDER),
             shadow=CARD_SHADOW,
-            padding=ft.padding.all(CARD_PADDING + 10),
+            padding=ft.Padding.all(CARD_PADDING + 10),
             content=ft.Column(
                 [
                     ft.Text(

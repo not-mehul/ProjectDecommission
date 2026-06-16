@@ -172,9 +172,9 @@ class DecommissionView(ft.View):
         card = ft.Container(
             bgcolor=SURFACE,
             border_radius=12,
-            border=ft.border.all(1, BORDER),
+            border=ft.Border.all(1, BORDER),
             shadow=CARD_SHADOW,
-            padding=ft.padding.all(CARD_PADDING),
+            padding=ft.Padding.all(CARD_PADDING),
             content=self._content_area,
             expand=True,
         )
@@ -506,7 +506,7 @@ class DecommissionView(ft.View):
             focused_border_color=PRIMARY,
             color=TEXT_PRIMARY,
             label_style=ft.TextStyle(color=TEXT_SECONDARY),
-            content_padding=ft.padding.symmetric(horizontal=10, vertical=8),
+            content_padding=ft.Padding.symmetric(horizontal=10, vertical=8),
             on_change=self._on_search_change,
             expand=True,
         )
@@ -606,17 +606,17 @@ class DecommissionView(ft.View):
                 controls=[
                     ft.Container(
                         content=item_names,
-                        padding=ft.padding.only(left=40, bottom=10),
+                        padding=ft.Padding.only(left=40, bottom=10),
                     )
                 ],
                 expanded=False,
-                tile_padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                tile_padding=ft.Padding.symmetric(horizontal=10, vertical=5),
             )
 
         # Compact mode: no expansion, just one line per category.
         return ft.Container(
             content=ft.Row([cb, title_text]),
-            padding=ft.padding.symmetric(horizontal=10, vertical=8),
+            padding=ft.Padding.symmetric(horizontal=10, vertical=8),
         )
 
     def _build_group_tile(self, group: str) -> ft.ExpansionTile | None:
@@ -677,13 +677,13 @@ class DecommissionView(ft.View):
             controls=[
                 ft.Container(
                     content=ft.Column(child_tiles, spacing=2),
-                    padding=ft.padding.only(left=20),
+                    padding=ft.Padding.only(left=20),
                 )
             ],
             # Default expanded so the inner per-category counts are visible
             # without an extra click; users can collapse if they want.
             expanded=True,
-            tile_padding=ft.padding.symmetric(horizontal=10, vertical=5),
+            tile_padding=ft.Padding.symmetric(horizontal=10, vertical=5),
         )
 
     def _refresh_parent(self, group: str) -> None:
@@ -853,11 +853,11 @@ class DecommissionView(ft.View):
             controls=[
                 ft.Container(
                     content=items_column,
-                    padding=ft.padding.only(left=40, bottom=10),
+                    padding=ft.Padding.only(left=40, bottom=10),
                 )
             ],
             expanded=False,
-            tile_padding=ft.padding.symmetric(horizontal=10, vertical=5),
+            tile_padding=ft.Padding.symmetric(horizontal=10, vertical=5),
         )
         return {
             "tile": tile,

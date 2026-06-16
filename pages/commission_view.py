@@ -222,9 +222,9 @@ class CommissionView(ft.View):
         form_card = ft.Container(
             bgcolor=SURFACE,
             border_radius=12,
-            border=ft.border.all(1, BORDER),
+            border=ft.Border.all(1, BORDER),
             shadow=CARD_SHADOW,
-            padding=ft.padding.all(CARD_PADDING),
+            padding=ft.Padding.all(CARD_PADDING),
             content=ft.Column(
                 [self._form_section, self._progress_column],
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,

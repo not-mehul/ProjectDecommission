@@ -9,6 +9,18 @@ pause for review before continuing.
 - [x] T1.2 `components/` — buttons (primary/secondary/danger/ghost + loading), inputs (text_field/dropdown), surfaces (card/section_header/stat_row/banner/badge)
 - [x] T1.3 Route every view through tokens via `constants.py` re-exporting from `theme.py` (identical values, zero visual change). Per-view *component* migration is deferred into each view's redesign phase to avoid restyling twice (login→P5, home→P2, commission/decommission/users→P3/P4).
 
+## Phase 1.5 · Migrate to Flet v0.85 (foundational — enables real testing)
+The existing code mixed idioms from incompatible flet versions and couldn't be
+constructed under any single release. Migrating to 0.85 standardizes the API
+and lets every screen be validated against the installed runtime. Mechanical:
+the navigation (page.views), window config, and View lifecycle are unchanged.
+- [x] T1.5a Bump requirement to flet>=0.85; update theme/components idioms
+- [x] T1.5b `ft.padding.*`->`ft.Padding.*`, `ft.border.all`->`ft.Border.all`, `ft.margin.only`->`ft.Margin.only` across all views (29+1 swaps)
+- [x] T1.5c App entry `ft.app(target=main)` -> `ft.run(main)`
+- [x] T1.5d Overlay show pattern (snackbar, date picker) -> `page.show_dialog(...)`
+- [x] T1.5e Validated: components + all 6 Views construct under flet 0.85.3
+      (NOTE: construction-level only — GUI render not verifiable headless here)
+
 ## Phase 2 · App shell (structural — review gate)
 - [ ] T2.1 Persistent left sidebar + content header/breadcrumb
 - [ ] T2.2 Org + session chip in sidebar; wire nav into push/pop + Cmd-K/Esc

@@ -116,9 +116,9 @@ class HomeView(ft.View):
         card_content = ft.Container(
             bgcolor=SURFACE,
             border_radius=12,
-            border=ft.border.all(1, BORDER),
+            border=ft.Border.all(1, BORDER),
             shadow=CARD_SHADOW,
-            padding=ft.padding.all(CARD_PADDING + 10),
+            padding=ft.Padding.all(CARD_PADDING + 10),
             expand=True,
             content=ft.Column(
                 [
@@ -156,7 +156,7 @@ class HomeView(ft.View):
 
     def _on_card_hover(self, e, card: ft.Container):
         if e.data == "true":
-            card.border = ft.border.all(1, PRIMARY)
+            card.border = ft.Border.all(1, PRIMARY)
             card.shadow = ft.BoxShadow(
                 spread_radius=1,
                 blur_radius=20,
@@ -164,7 +164,7 @@ class HomeView(ft.View):
                 offset=ft.Offset(0, 6),
             )
         else:
-            card.border = ft.border.all(1, BORDER)
+            card.border = ft.Border.all(1, BORDER)
             card.shadow = CARD_SHADOW
         page = getattr(self, "page", None)
         if page:

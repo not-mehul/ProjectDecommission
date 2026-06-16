@@ -147,9 +147,9 @@ class UsersView(ft.View):
         card = ft.Container(
             bgcolor=SURFACE,
             border_radius=12,
-            border=ft.border.all(1, BORDER),
+            border=ft.Border.all(1, BORDER),
             shadow=CARD_SHADOW,
-            padding=ft.padding.all(CARD_PADDING),
+            padding=ft.Padding.all(CARD_PADDING),
             content=ft.Column(
                 card_content,
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
@@ -207,7 +207,7 @@ class UsersView(ft.View):
                         width=40,
                         height=2,
                         bgcolor=BORDER,
-                        margin=ft.margin.only(bottom=18),
+                        margin=ft.Margin.only(bottom=18),
                     )
                 )
         return ft.Row(indicators, alignment=ft.MainAxisAlignment.CENTER, spacing=8)
@@ -359,9 +359,9 @@ class UsersView(ft.View):
             value=self._selected_date,
             on_change=self._on_date_change,
         )
-        e.page.overlay.append(date_picker)
-        date_picker.open = True
-        e.page.update()
+        # Flet 0.85 presents the picker via show_dialog rather than the old
+        # overlay-append + .open pattern.
+        e.page.show_dialog(date_picker)
 
     def _on_date_change(self, e):
         if e.control.value:
@@ -464,7 +464,7 @@ class UsersView(ft.View):
     def _create_participant_row(
         self, first: str = "", last: str = "", email: str = ""
     ) -> ft.Row:
-        compact_padding = ft.padding.symmetric(horizontal=10, vertical=8)
+        compact_padding = ft.Padding.symmetric(horizontal=10, vertical=8)
 
         def _participant_field(value: str, expand: int) -> ft.TextField:
             return ft.TextField(
@@ -587,7 +587,7 @@ class UsersView(ft.View):
         self._invite_progress.controls.append(
             ft.Container(
                 content=ft.Text(summary, color=color, weight=ft.FontWeight.W_600),
-                padding=ft.padding.only(top=10),
+                padding=ft.Padding.only(top=10),
             )
         )
         self._copy_btn.visible = bool(self._invited_records)

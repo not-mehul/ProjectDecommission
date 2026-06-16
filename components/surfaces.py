@@ -39,9 +39,9 @@ def card(
         content=content,
         bgcolor=theme.SURFACE,
         border_radius=theme.RADIUS_LG,
-        border=ft.border.all(1, theme.BORDER),
+        border=ft.Border.all(1, theme.BORDER),
         shadow=theme.elevation(elevation),
-        padding=ft.padding.all(padding),
+        padding=ft.Padding.all(padding),
         expand=expand,
         on_click=on_click,
         ink=ink,
@@ -109,9 +109,9 @@ def banner(message: str, *, kind: str = "info") -> ft.Container:
     color, icon = _KIND.get(kind, _KIND["info"])
     return ft.Container(
         bgcolor=theme.palette.tint(color, 0.12),
-        border=ft.border.all(1, theme.palette.tint(color, 0.4)),
+        border=ft.Border.all(1, theme.palette.tint(color, 0.4)),
         border_radius=theme.RADIUS_MD,
-        padding=ft.padding.symmetric(
+        padding=ft.Padding.symmetric(
             horizontal=theme.SPACE_LG, vertical=theme.SPACE_MD
         ),
         content=ft.Row(
@@ -136,7 +136,7 @@ def badge(text: str, *, kind: str = "info") -> ft.Container:
     return ft.Container(
         bgcolor=theme.palette.tint(color, 0.16),
         border_radius=theme.RADIUS_PILL,
-        padding=ft.padding.symmetric(
+        padding=ft.Padding.symmetric(
             horizontal=theme.SPACE_MD, vertical=theme.SPACE_XS
         ),
         content=ft.Text(
