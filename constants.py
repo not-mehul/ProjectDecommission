@@ -1,8 +1,6 @@
 import json
 from pathlib import Path
 
-import flet as ft
-
 # App Info
 APP_VERSION = "3.2"
 GITHUB_REPO = "not-mehul/vCommander"
@@ -28,19 +26,24 @@ def load_internal_invite_defaults() -> dict | None:
 # Flip back to False before any real testing or deployment.
 DEV_SKIP_LOGIN = False
 
-# Colors - Dark Theme with Pastel Accents
-BG = "#1a1a1a"
-SURFACE = "#2a2a2a"
-BORDER = "#3a3a3a"
-PRIMARY = "#7eb8da"
-SECONDARY = "#8fd4b0"
-WARNING = "#f0b87e"
-ERROR = "#e8827a"
-TEXT_PRIMARY = "#e0e0e0"
-# Bumped from #a0a0a0 → #b8b8b8 for better contrast on the dark BG;
-# the prior value sat at ~3.4:1 contrast (below WCAG AA for small text),
-# the new value clears 5:1 and is visually indistinguishable.
-TEXT_SECONDARY = "#b8b8b8"
+# Colors — now sourced from the design system in `theme.py`. These names are
+# re-exported aliases kept for backwards compatibility so existing views keep
+# working unchanged; new code should import semantic tokens from `theme`
+# directly (theme.ACCENT, theme.SUCCESS, theme.DANGER, …). The dark-mode
+# values are identical to the originals, so this is a pure indirection with
+# no visual change — but it routes every view through a single, swappable
+# palette (enabling the light/dark toggle later).
+from theme import (  # noqa: E402
+    BG,
+    BORDER,
+    ERROR,
+    PRIMARY,
+    SECONDARY,
+    SURFACE,
+    TEXT_PRIMARY,
+    TEXT_SECONDARY,
+    WARNING,
+)
 
 # Window
 MIN_WIDTH = 1100
@@ -61,13 +64,8 @@ SESSION_WARNING_MINUTES = 5
 # names like "vCommander - Automation API - v2.0.1 - 1714316400".
 API_NAME = "vCommander - Automation API - v" + APP_VERSION + " - "
 
-# Card Shadow
-CARD_SHADOW = ft.BoxShadow(
-    spread_radius=0,
-    blur_radius=12,
-    color=ft.Colors.with_opacity(0.3, "#000000"),
-    offset=ft.Offset(0, 4),
-)
+# Card Shadow — re-exported from the design system (elevation level 1).
+from theme import CARD_SHADOW  # noqa: E402,F401
 
 # ----------------------------------------------------------------------
 # Commission constants
