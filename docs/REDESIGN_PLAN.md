@@ -21,10 +21,10 @@ the navigation (page.views), window config, and View lifecycle are unchanged.
 - [x] T1.5e Validated: components + all 6 Views construct under flet 0.85.3
       (NOTE: construction-level only — GUI render not verifiable headless here)
 
-## Phase 2 · App shell (structural — review gate)
-- [ ] T2.1 Persistent left sidebar + content header/breadcrumb
-- [ ] T2.2 Org + session chip in sidebar; wire nav into push/pop + Cmd-K/Esc
-- [ ] T2.3 Compact dashboard home; demote per-tool brand colors
+## Phase 2 · App shell (structural — review gate) — DONE
+- [x] T2.1 `ShellView` base class: persistent left sidebar (wordmark + nav) + content title header
+- [x] T2.2 Org + live session chip in sidebar; logout in sidebar; session countdown/warning/auto-logout centralized in ShellView (now ticks on every authed screen). Global Cmd-K/Esc/Cmd-, unchanged in main.py
+- [x] T2.3 Compact dashboard Home (tool cards + shortcut hint); brand colors demoted to small nav/card icon tints. Tool views (commission/decommission/users) re-based onto ShellView; users keeps an in-card step-back button
 
 ## Phase 3 · Unified flows (review gate)
 - [ ] T3.1 Shared stepper component; restyle Users stepper

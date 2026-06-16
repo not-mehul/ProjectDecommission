@@ -21,7 +21,6 @@ from constants import (
     _INTERNAL_DELETERS,
     _INTERNAL_GETTERS,
     ASSET_CATEGORIES,
-    BG,
     BORDER,
     CARD_PADDING,
     CARD_SHADOW,
@@ -29,7 +28,6 @@ from constants import (
     DELETION_ORDER,
     ERROR,
     FIELD_SPACING,
-    PAGE_PADDING,
     PRIMARY,
     SECONDARY,
     SURFACE,
@@ -37,6 +35,7 @@ from constants import (
     TEXT_SECONDARY,
     WARNING,
 )
+from pages.app_shell import ShellView
 from utils.cancellation import CancellationToken
 from utils.executor import _executor
 from utils.logger import log_system
@@ -117,13 +116,15 @@ def _section_heading(title: str, subtitle: str | None = None) -> list[ft.Control
     return out
 
 
-class DecommissionView(ft.View):
+class DecommissionView(ShellView):
     def __init__(self, push_route, pop_route, **kwargs):
         super().__init__(
-            route="/decommission", bgcolor=BG, padding=PAGE_PADDING, **kwargs
+            route="/decommission",
+            title="Decommission Organization",
+            push_route=push_route,
+            pop_route=pop_route,
+            **kwargs,
         )
-        self.push_route = push_route
-        self.pop_route = pop_route
         self._state = SCAN
         self._assets: dict[str, list[dict]] = {}
         self._selected_categories: dict[str, bool] = {}
@@ -146,22 +147,6 @@ class DecommissionView(ft.View):
     # ------------------------------------------------------------------
 
     def _build_ui(self):
-        header = ft.Row(
-            [
-                ft.IconButton(
-                    icon=ft.Icons.ARROW_BACK,
-                    icon_color=TEXT_SECONDARY,
-                    on_click=lambda _: self.push_route("/home"),
-                ),
-                ft.Text(
-                    "Decommission Organization",
-                    size=22,
-                    color=TEXT_PRIMARY,
-                    weight=ft.FontWeight.W_600,
-                ),
-            ],
-        )
-
         self._content_area = ft.Column(
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             scroll=ft.ScrollMode.ADAPTIVE,
@@ -179,9 +164,7 @@ class DecommissionView(ft.View):
             expand=True,
         )
 
-        self.controls = [
-            ft.Column([header, ft.Container(height=10), card], expand=True)
-        ]
+        self.render(card)
 
         self._render_state()
 

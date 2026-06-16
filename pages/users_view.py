@@ -15,13 +15,11 @@ import flet as ft
 
 from apis.external_api import VerkadaExternalAPIClient
 from constants import (
-    BG,
     BORDER,
     CARD_PADDING,
     CARD_SHADOW,
     ERROR,
     FIELD_SPACING,
-    PAGE_PADDING,
     PRIMARY,
     SECONDARY,
     SURFACE,
@@ -30,6 +28,8 @@ from constants import (
     WARNING,
     load_internal_invite_defaults,
 )
+from components import ghost_button
+from pages.app_shell import ShellView
 from utils.db import load_import_settings, save_import_settings
 from utils.executor import _executor
 from utils.session import get_external_client, get_internal_client, set_external_client
@@ -97,11 +97,15 @@ def _strip(value: str | None) -> str:
     return (value or "").strip()
 
 
-class UsersView(ft.View):
+class UsersView(ShellView):
     def __init__(self, push_route, pop_route, **kwargs):
-        super().__init__(route="/users", bgcolor=BG, padding=PAGE_PADDING, **kwargs)
-        self.push_route = push_route
-        self.pop_route = pop_route
+        super().__init__(
+            route="/users",
+            title="User Management",
+            push_route=push_route,
+            pop_route=pop_route,
+            **kwargs,
+        )
         self._current_step = 0
         self._sites: list[dict] = []
         self._participants: list[dict] = []
@@ -125,23 +129,13 @@ class UsersView(ft.View):
         for i, step in enumerate(self._steps):
             step.visible = i == 0
 
-        header = ft.Row(
-            [
-                ft.IconButton(
-                    icon=ft.Icons.ARROW_BACK,
-                    icon_color=TEXT_SECONDARY,
-                    on_click=self._on_back,
-                ),
-                ft.Text(
-                    "User Management",
-                    size=22,
-                    color=TEXT_PRIMARY,
-                    weight=ft.FontWeight.W_600,
-                ),
-            ],
-        )
-
-        card_content: list[ft.Control] = [self._step_indicators]
+        # The multi-step flow keeps its own step-back control (the shell
+        # header has no back arrow); at step 0 this returns Home.
+        self._back_button = ghost_button("← Back", on_click=self._on_back)
+        card_content: list[ft.Control] = [
+            ft.Row([self._back_button]),
+            self._step_indicators,
+        ]
         card_content.extend(self._steps)
 
         card = ft.Container(
@@ -159,9 +153,7 @@ class UsersView(ft.View):
             expand=True,
         )
 
-        self.controls = [
-            ft.Column([header, ft.Container(height=10), card], expand=True)
-        ]
+        self.render(card)
 
     # ------------------------------------------------------------------
     # Step indicator strip

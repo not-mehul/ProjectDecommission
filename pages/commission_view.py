@@ -27,7 +27,6 @@ from constants import (
     AS_KEYPAD_NAME,
     AS_PANEL_NAME,
     AS_SITE_NAME,
-    BG,
     BORDER,
     BUILDING_PROVISION_SECONDS,
     CARD_PADDING,
@@ -44,7 +43,6 @@ from constants import (
     # ESS_VISITOR_ACCESS_NAME,
     FIELD_SPACING,
     HQ_TIMEZONE,
-    PAGE_PADDING,
     PRIMARY,
     ROLE_PROPAGATION_SECONDS,
     SECONDARY,
@@ -70,6 +68,7 @@ from constants import (
     VSS_SITE_NAME,
     WARNING,
 )
+from pages.app_shell import ShellView
 from utils.cancellation import CancellationToken
 from utils.executor import _executor
 from utils.session import get_internal_client, set_external_client
@@ -80,13 +79,15 @@ _ASSETS_DIR = os.path.join(
 )
 
 
-class CommissionView(ft.View):
+class CommissionView(ShellView):
     def __init__(self, push_route, pop_route, **kwargs):
         super().__init__(
-            route="/commission", bgcolor=BG, padding=PAGE_PADDING, **kwargs
+            route="/commission",
+            title="Commission Organization",
+            push_route=push_route,
+            pop_route=pop_route,
+            **kwargs,
         )
-        self.push_route = push_route
-        self.pop_route = pop_route
         self._kits: dict[str, dict[str, str]] = {}
         self._device_fields: dict[str, ft.TextField] = {}
         # Cooperative cancel for the commission step loop. Checked
@@ -234,28 +235,7 @@ class CommissionView(ft.View):
             expand=True,
         )
 
-        header = ft.Row(
-            [
-                ft.IconButton(
-                    icon=ft.Icons.ARROW_BACK,
-                    icon_color=TEXT_SECONDARY,
-                    on_click=lambda _: self.push_route("/home"),
-                ),
-                ft.Text(
-                    "Commission Organization",
-                    size=22,
-                    color=TEXT_PRIMARY,
-                    weight=ft.FontWeight.W_600,
-                ),
-            ],
-        )
-
-        self.controls = [
-            ft.Column(
-                [header, ft.Container(height=10), form_card],
-                expand=True,
-            )
-        ]
+        self.render(form_card)
 
     def _make_device_field(self, device_type: str, expand=None) -> ft.TextField:
         field = ft.TextField(
