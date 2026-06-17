@@ -9,7 +9,7 @@ shortcut hint. The session countdown and auto-logout live in `ShellView`.
 import flet as ft
 
 import theme
-from components import banner, card
+from components import card
 from pages.app_shell import ToolView
 
 # (route, title, icon, brand tint, description) for the three tool cards.
@@ -50,23 +50,14 @@ class HomeView(ToolView):
         self._build_ui()
 
     def _build_ui(self):
+        # Three tall tiles that fill the content area down to the bottom.
         cards_row = ft.Row(
             [self._tool_card(*t) for t in _TOOLS],
             spacing=theme.SPACE_LG,
+            vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+            expand=True,
         )
-
-        body = ft.Column(
-            [
-                cards_row,
-                ft.Container(height=theme.SPACE_XL),
-                banner(
-                    "Tip: press Cmd/Ctrl-K to jump Home, Esc to go back, "
-                    "and Cmd/Ctrl-, to log out.",
-                    kind="info",
-                ),
-            ],
-        )
-        self.mount(body)
+        self.mount(cards_row)
 
     def _tool_card(self, route, title, icon, brand, description) -> ft.Control:
         chevron = ft.Icon(
@@ -75,8 +66,7 @@ class HomeView(ToolView):
         inner = card(
             ft.Column(
                 [
-                    # Icon tile left, navigate affordance right — balances the
-                    # card's top edge across its full width.
+                    # Icon tile + navigate arrow pinned to the top edge…
                     ft.Row(
                         [
                             ft.Container(
@@ -92,7 +82,8 @@ class HomeView(ToolView):
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    ft.Container(height=theme.SPACE_LG),
+                    # …a flexible spacer pushes the label block to the bottom.
+                    ft.Container(expand=True),
                     ft.Text(
                         title,
                         size=theme.FONT_HEADING,
@@ -107,6 +98,7 @@ class HomeView(ToolView):
                     ),
                 ],
                 spacing=0,
+                expand=True,
             ),
             padding=theme.SPACE_XL,
             expand=True,
@@ -114,7 +106,7 @@ class HomeView(ToolView):
             ink=True,
         )
         inner.animate = ft.Animation(160, ft.AnimationCurve.EASE_IN_OUT)
-        wrapper = ft.Container(content=inner, expand=1, height=208)
+        wrapper = ft.Container(content=inner, expand=1)
         wrapper.on_hover = lambda e, c=inner, ch=chevron: self._hover(e, c, ch)
         return wrapper
 
