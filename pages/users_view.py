@@ -28,7 +28,7 @@ from constants import (
     WARNING,
     load_internal_invite_defaults,
 )
-from components import Stepper, ghost_button
+from components import Stepper
 from pages.app_shell import ToolView
 from utils.db import load_import_settings, save_import_settings
 from utils.executor import _executor
@@ -127,15 +127,7 @@ class UsersView(ToolView):
         for i, step in enumerate(self._steps):
             step.visible = i == 0
 
-        # The multi-step flow keeps its own step-back control (the shell
-        # header has no back arrow); at step 0 this returns Home.
-        self._back_button = ghost_button(
-            "Back", on_click=self._on_back, icon=ft.Icons.ARROW_BACK
-        )
-        card_content: list[ft.Control] = [
-            ft.Row([self._back_button]),
-            self._step_indicators,
-        ]
+        card_content: list[ft.Control] = [self._step_indicators]
         card_content.extend(self._steps)
 
         card = ft.Container(
@@ -619,9 +611,3 @@ class UsersView(ToolView):
             s.visible = i == step
         self._update_step_indicators()
         page.update()
-
-    def _on_back(self, e):
-        if self._current_step > 0:
-            self._go_to_step(self._current_step - 1, e.page)
-        else:
-            self.push_route("/home")
