@@ -60,43 +60,36 @@ class HomeView(ToolView):
         self.mount(cards_row)
 
     def _tool_card(self, route, title, icon, brand, description) -> ft.Control:
-        chevron = ft.Icon(
-            ft.Icons.ARROW_FORWARD_ROUNDED, size=18, color=theme.TEXT_MUTED
-        )
         inner = card(
             ft.Column(
                 [
-                    # Icon tile + navigate arrow pinned to the top edge…
-                    ft.Row(
-                        [
-                            ft.Container(
-                                width=48,
-                                height=48,
-                                border_radius=theme.RADIUS_MD,
-                                bgcolor=theme.palette.tint(brand, 0.16),
-                                alignment=ft.Alignment.CENTER,
-                                content=ft.Icon(icon, size=24, color=brand),
-                            ),
-                            chevron,
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ft.Container(
+                        width=56,
+                        height=56,
+                        border_radius=theme.RADIUS_MD,
+                        bgcolor=theme.palette.tint(brand, 0.16),
+                        alignment=ft.Alignment.CENTER,
+                        content=ft.Icon(icon, size=28, color=brand),
                     ),
-                    # …a flexible spacer pushes the label block to the bottom.
-                    ft.Container(expand=True),
+                    ft.Container(height=theme.SPACE_LG),
                     ft.Text(
                         title,
                         size=theme.FONT_HEADING,
                         color=theme.TEXT_PRIMARY,
                         weight=theme.WEIGHT_SEMIBOLD,
+                        text_align=ft.TextAlign.CENTER,
                     ),
                     ft.Container(height=theme.SPACE_XS),
                     ft.Text(
                         description,
                         size=theme.FONT_BODY,
                         color=theme.TEXT_SECONDARY,
+                        text_align=ft.TextAlign.CENTER,
                     ),
                 ],
+                # Center the icon + label block in the tile, both axes.
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=0,
                 expand=True,
             ),
@@ -107,14 +100,13 @@ class HomeView(ToolView):
         )
         inner.animate = ft.Animation(160, ft.AnimationCurve.EASE_IN_OUT)
         wrapper = ft.Container(content=inner, expand=1)
-        wrapper.on_hover = lambda e, c=inner, ch=chevron: self._hover(e, c, ch)
+        wrapper.on_hover = lambda e, c=inner: self._hover(e, c)
         return wrapper
 
-    def _hover(self, e, c: ft.Container, chevron: ft.Icon):
+    def _hover(self, e, c: ft.Container):
         active = e.data == "true"
         c.border = ft.Border.all(1, theme.ACCENT if active else theme.BORDER)
         c.shadow = theme.elevation(2 if active else 1)
-        chevron.color = theme.ACCENT if active else theme.TEXT_MUTED
         page = getattr(self, "page", None)
         if page:
             page.update()
