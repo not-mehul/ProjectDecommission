@@ -60,3 +60,11 @@ Replaced the per-view sidebar + page.views route stack with one persistent shell
       tool→Home, 2FA→login. Fixes "Esc keeps going back on Home".
 - [x] Cmd/Ctrl-K gated to authenticated tool routes only — can no longer open on
       the 2FA screen (which previously let you bypass MFA into the app).
+
+## Phase 8 · Home + palette polish — DONE
+- [x] Home tool cards rebalanced: icon tile + navigate arrow on a top row, larger
+      title/description, tighter height — no more content floating in sparse,
+      wide cards.
+- [x] Command palette tidied: full-width search aligned with the rows, a divider,
+      consistent padding, hover highlight, and it sizes to content (no empty
+      bottom). content_padding=0 + a STRETCH column.

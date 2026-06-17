@@ -69,50 +69,60 @@ class HomeView(ToolView):
         self.mount(body)
 
     def _tool_card(self, route, title, icon, brand, description) -> ft.Control:
+        chevron = ft.Icon(
+            ft.Icons.ARROW_FORWARD_ROUNDED, size=18, color=theme.TEXT_MUTED
+        )
         inner = card(
             ft.Column(
                 [
-                    ft.Container(
-                        width=44,
-                        height=44,
-                        border_radius=theme.RADIUS_MD,
-                        bgcolor=theme.palette.tint(brand, 0.16),
-                        alignment=ft.Alignment.CENTER,
-                        content=ft.Icon(icon, size=22, color=brand),
+                    # Icon tile left, navigate affordance right — balances the
+                    # card's top edge across its full width.
+                    ft.Row(
+                        [
+                            ft.Container(
+                                width=48,
+                                height=48,
+                                border_radius=theme.RADIUS_MD,
+                                bgcolor=theme.palette.tint(brand, 0.16),
+                                alignment=ft.Alignment.CENTER,
+                                content=ft.Icon(icon, size=24, color=brand),
+                            ),
+                            chevron,
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     ft.Container(height=theme.SPACE_LG),
                     ft.Text(
                         title,
-                        size=theme.FONT_SUBTITLE,
+                        size=theme.FONT_HEADING,
                         color=theme.TEXT_PRIMARY,
                         weight=theme.WEIGHT_SEMIBOLD,
                     ),
                     ft.Container(height=theme.SPACE_XS),
                     ft.Text(
                         description,
-                        size=theme.FONT_CAPTION,
+                        size=theme.FONT_BODY,
                         color=theme.TEXT_SECONDARY,
                     ),
                 ],
+                spacing=0,
             ),
             padding=theme.SPACE_XL,
             expand=True,
             on_click=lambda _, r=route: self.push_route(r),
             ink=True,
         )
-        # Hover affordance: accent border + lift.
         inner.animate = ft.Animation(160, ft.AnimationCurve.EASE_IN_OUT)
-        wrapper = ft.Container(content=inner, expand=1, height=220)
-        wrapper.on_hover = lambda e, c=inner: self._hover(e, c)
+        wrapper = ft.Container(content=inner, expand=1, height=208)
+        wrapper.on_hover = lambda e, c=inner, ch=chevron: self._hover(e, c, ch)
         return wrapper
 
-    def _hover(self, e, c: ft.Container):
-        if e.data == "true":
-            c.border = ft.Border.all(1, theme.ACCENT)
-            c.shadow = theme.elevation(2)
-        else:
-            c.border = ft.Border.all(1, theme.BORDER)
-            c.shadow = theme.elevation(1)
+    def _hover(self, e, c: ft.Container, chevron: ft.Icon):
+        active = e.data == "true"
+        c.border = ft.Border.all(1, theme.ACCENT if active else theme.BORDER)
+        c.shadow = theme.elevation(2 if active else 1)
+        chevron.color = theme.ACCENT if active else theme.TEXT_MUTED
         page = getattr(self, "page", None)
         if page:
             page.update()

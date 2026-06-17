@@ -17,14 +17,14 @@ from components.inputs import text_field
 
 Command = tuple[str, str, Callable[[], None]]
 
+_WIDTH = 560
+
 
 class CommandPalette:
     def __init__(self, page: ft.Page, commands: list[Command]):
         self._page = page
         self._commands = commands
-        self._results = ft.Column(
-            spacing=2, scroll=ft.ScrollMode.ADAPTIVE, height=300
-        )
+        self._results = ft.Column(spacing=2, tight=True)
         self._search = text_field(
             "Type a command…",
             on_change=self._on_change,
@@ -32,10 +32,22 @@ class CommandPalette:
         )
         self._dialog = ft.AlertDialog(
             bgcolor=theme.SURFACE,
+            content_padding=0,
+            shape=ft.RoundedRectangleBorder(radius=theme.RADIUS_LG),
             content=ft.Container(
-                width=540,
+                width=_WIDTH,
+                padding=ft.Padding.all(theme.SPACE_SM),
                 content=ft.Column(
-                    [self._search, ft.Container(height=theme.SPACE_SM), self._results],
+                    [
+                        ft.Container(
+                            padding=ft.Padding.all(theme.SPACE_XS),
+                            content=self._search,
+                        ),
+                        ft.Divider(height=1, color=theme.BORDER_SUBTLE),
+                        ft.Container(height=theme.SPACE_XS),
+                        self._results,
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
                     tight=True,
                 ),
             ),
@@ -66,7 +78,9 @@ class CommandPalette:
         if not items:
             self._results.controls = [
                 ft.Container(
-                    padding=ft.Padding.all(theme.SPACE_MD),
+                    padding=ft.Padding.symmetric(
+                        horizontal=theme.SPACE_MD, vertical=theme.SPACE_MD
+                    ),
                     content=ft.Text(
                         "No matching commands",
                         color=theme.TEXT_MUTED,
@@ -78,12 +92,12 @@ class CommandPalette:
         self._results.controls = [self._row(*c) for c in items]
 
     def _row(self, label: str, icon: str, action: Callable[[], None]) -> ft.Control:
-        return ft.Container(
+        row = ft.Container(
             on_click=lambda _: self._run(action),
             ink=True,
             border_radius=theme.RADIUS_MD,
             padding=ft.Padding.symmetric(
-                horizontal=theme.SPACE_MD, vertical=theme.SPACE_SM + 2
+                horizontal=theme.SPACE_MD, vertical=theme.SPACE_MD - 2
             ),
             content=ft.Row(
                 [
@@ -94,6 +108,16 @@ class CommandPalette:
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
         )
+        row.on_hover = lambda e, c=row: self._hover(e, c)
+        return row
+
+    def _hover(self, e, container: ft.Container):
+        container.bgcolor = (
+            theme.palette.tint(theme.TEXT_PRIMARY, 0.06)
+            if e.data == "true"
+            else None
+        )
+        self._page.update()
 
     def _run(self, action: Callable[[], None]):
         self._page.pop_dialog()

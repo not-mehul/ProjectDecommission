@@ -76,6 +76,19 @@ def _drive(page, view, key, state):
     if not state:
         return
     try:
+        if key == "home" and state == "palette":
+            from components import CommandPalette
+
+            cmds = [
+                ("Go to Home", ft.Icons.GRID_VIEW_ROUNDED, lambda: None),
+                ("Go to Commission", ft.Icons.BUSINESS_ROUNDED, lambda: None),
+                ("Go to User Management", ft.Icons.PEOPLE_ALT_ROUNDED, lambda: None),
+                ("Go to Decommission", ft.Icons.DELETE_SWEEP_ROUNDED, lambda: None),
+                ("Toggle light / dark theme", ft.Icons.BRIGHTNESS_6_ROUNDED, lambda: None),
+                ("Log out", ft.Icons.LOGOUT_ROUNDED, lambda: None),
+            ]
+            CommandPalette(page, cmds).open()
+            return
         if key == "commission":
             if state in ("review", "report"):
                 view.template_dropdown.value = "AS"
