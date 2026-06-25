@@ -257,13 +257,17 @@ class DecommissionView(ToolView):
         ]
 
     async def _on_scan(self, e):
+        # Capture the page now: _render_state() at the end detaches the scan
+        # button that fired this event, so reading `e.page` afterwards would
+        # raise. Use this reference for every page touch in the flow.
+        page = e.page
         set_button_loading(self._scan_btn, True, "Scanning")
 
         # Reveal the prep-step progress block from the scan layout so the
         # rows we append have somewhere to land.
         self._prep_progress.controls.clear()
         self._prep_progress.visible = True
-        e.page.update()
+        page.update()
         await asyncio.sleep(0)
 
         # Clear any stale data from a previous scan so a partial failure never
@@ -297,13 +301,13 @@ class DecommissionView(ToolView):
             # the user expects to remain elevated for any follow-up admin
             # work after the decommission completes.
             await self._run_prep_step(
-                e.page,
+                page,
                 loop,
                 "Enabling Global Site Admin",
                 client.enable_global_site_admin,
             )
             await self._run_prep_step(
-                e.page,
+                page,
                 loop,
                 "Granting Access System Admin",
                 client.enable_access_admin,
@@ -330,11 +334,11 @@ class DecommissionView(ToolView):
 
             self._state = REVIEW
             self._render_state()
-            e.page.update()
+            page.update()
         except Exception as ex:
             self._assets = {}
             set_button_loading(self._scan_btn, False, "Scan Organization")
-            show_alert(e.page, "Scan Failed", str(ex))
+            show_alert(page, "Scan Failed", str(ex))
 
     async def _run_prep_step(
         self, page, loop: asyncio.AbstractEventLoop, label: str, fn
@@ -485,9 +489,10 @@ class DecommissionView(ToolView):
         ]
 
     def _go_to_select(self, e):
+        page = e.page  # capture before _render_state() detaches the button
         self._state = SELECT
         self._render_state()
-        e.page.update()
+        page.update()
 
     # ------------------------------------------------------------------
     # SELECT state
@@ -854,21 +859,23 @@ class DecommissionView(ToolView):
 
     def _on_review_selection(self, e):
         """SELECT -> CONFIRM: show exactly what will be deleted."""
+        page = e.page  # capture before _render_state() detaches the button
         if not self._selected_categories_list():
             show_toast(
-                e.page,
+                page,
                 "Please select at least one category to delete.",
                 kind="warning",
             )
             return
         self._state = CONFIRM
         self._render_state()
-        e.page.update()
+        page.update()
 
     def _back_to_select(self, e):
+        page = e.page  # capture before _render_state() detaches the button
         self._state = SELECT
         self._render_state()
-        e.page.update()
+        page.update()
 
     def _render_confirm(self):
         selected = set(self._selected_categories_list())
@@ -917,12 +924,16 @@ class DecommissionView(ToolView):
         ]
 
     async def _on_delete(self, e):
+        # Capture the page up front: _render_state() detaches the button that
+        # fired this event, and after the await below `e.page` would raise
+        # ("Control must be added to the page first").
+        page = e.page
         selected = [
             cat for cat, checked in self._selected_categories.items() if checked
         ]
         if not selected:
             show_toast(
-                e.page,
+                page,
                 "Please select at least one category to delete.",
                 kind="warning",
             )
@@ -930,9 +941,9 @@ class DecommissionView(ToolView):
 
         self._state = PROCESSING
         self._render_state()
-        e.page.update()
+        page.update()
         await asyncio.sleep(0)
-        await self._run_deletions(e.page, selected)
+        await self._run_deletions(page, selected)
 
     # ------------------------------------------------------------------
     # PROCESSING state
