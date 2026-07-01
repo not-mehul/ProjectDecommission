@@ -120,7 +120,17 @@ def _drive(page, view, key, state):
                 view._render_summary(page, all_success=False)
         elif key == "decommission":
             view._assets = _fake_assets()
-            if state == "review":
+            if state == "scanning":
+                # Simulate the mid-scan UI (spinner button + progress bar).
+                view._scan_btn.disabled = True
+                view._prep_progress.visible = True
+                view._prep_progress.controls = [
+                    ft.Row([ft.Icon(ft.Icons.CHECK_CIRCLE, size=16), ft.Text("Enabling Global Site Admin — done", size=13)], spacing=8),
+                    ft.Row([ft.Icon(ft.Icons.CHECK_CIRCLE, size=16), ft.Text("Granting Access System Admin — done", size=13)], spacing=8),
+                ]
+                view._scan_progress_box.visible = True
+                view._scan_progress.set_progress(14, 35, prefix="Scanning Cameras")
+            elif state == "review":
                 view._state = dv.REVIEW
                 view._render_state()
             elif state == "select":

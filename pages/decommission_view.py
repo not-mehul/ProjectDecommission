@@ -227,6 +227,11 @@ class DecommissionView(ToolView):
         # Lives in the same Column as the scan button so the page composition
         # doesn't shift when prep starts.
         self._prep_progress = ft.Column(spacing=8, visible=False)
+        # Determinate progress + live status for the per-category scan loop.
+        self._scan_progress = ProgressHeader(determinate=True)
+        self._scan_progress_box = ft.Container(
+            content=self._scan_progress, width=440, visible=False
+        )
         self._content_area.controls = [
             ft.Container(height=30),
             ft.Column(
@@ -250,6 +255,8 @@ class DecommissionView(ToolView):
                     self._scan_btn,
                     ft.Container(height=15),
                     self._prep_progress,
+                    ft.Container(height=8),
+                    self._scan_progress_box,
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -320,7 +327,18 @@ class DecommissionView(ToolView):
             # delete the same device twice (and the second attempt fails
             # because it's already gone or uses the wrong endpoint).
             camera_dedup_serials: set[str] = set()
-            for category in ASSET_CATEGORIES:
+            total = len(ASSET_CATEGORIES)
+            self._scan_progress_box.visible = True
+            self._scan_progress.set_progress(0, total, prefix="Starting scan")
+            page.update()
+            for i, category in enumerate(ASSET_CATEGORIES):
+                # Surface which category is being scanned before the (blocking)
+                # request so the bar + status update as the scan progresses.
+                self._scan_progress.set_progress(
+                    i, total, prefix=f"Scanning {category}"
+                )
+                page.update()
+                await asyncio.sleep(0)
                 items = await self._scan_category(
                     loop, client, ext_client, category, camera_dedup_serials
                 )
@@ -331,6 +349,9 @@ class DecommissionView(ToolView):
                         if item.get("serial_number")
                     }
                 self._assets[category] = items
+
+            self._scan_progress.set_progress(total, total, prefix="Scan complete")
+            page.update()
 
             self._state = REVIEW
             self._render_state()
@@ -1299,7 +1320,9 @@ class DecommissionView(ToolView):
         except Exception as ex:
             # Sites get a second chance: a site that refuses deletion is
             # renamed "<name>-<mm/dd/yy>" so its original name is freed
-            # for future commissioning runs.
+            # for future commissioning runs. The rename is a *fallback*, not a
+            # deletion — it is reported as a warning and NOT counted as a
+            # successful removal (the site still exists in the org).
             if category == "Sites":
                 renamed_to = await self._rename_site_fallback(
                     loop, int_client, item_id, item_name
@@ -1310,21 +1333,18 @@ class DecommissionView(ToolView):
                     )
                     step_text.value = (
                         f"  Could not delete {row_label} — renamed to "
-                        f"'{renamed_to}'"
+                        f"'{renamed_to}' (not deleted)"
                     )
                     step_text.color = WARNING
                     if cat_row is not None:
-                        cat_row["success"] += 1
-                        cat_row["counter"].value = (
-                            f"{cat_row['success']} / {cat_row['total']}"
-                        )
+                        cat_row["failed"] += 1
                     page.update()
                     log_system(
                         f"{category}: could not delete {descriptor} ({ex}) — "
-                        f"renamed to '{renamed_to}'",
+                        f"renamed to '{renamed_to}' (counted as not deleted)",
                         level="WARN",
                     )
-                    return True
+                    return False
 
             step_row.controls[0] = ft.Icon(ft.Icons.ERROR, color=ERROR, size=16)
             step_text.value = f"  Failed: {row_label} — {ex}"
