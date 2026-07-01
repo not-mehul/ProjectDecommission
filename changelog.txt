@@ -25,6 +25,7 @@ v3.2
 
 v3.3
 - (New feature) Updated UI to be more consistent throughout the tool with a sidebar. Major UI revamp.
+- (New feature) Decommission tool now lists and deletes Groups (non-Verkada-managed only), Access Users, and footage Archives (look-back window set by SEARCH_DURATION).
 - (Bug fix) Updated Flet from 0.28.3 to 0.85
 - (Bug fix) Updated SMS Authenticator API to handle text messages correctly.
 

@@ -222,6 +222,8 @@ ASSET_CATEGORIES = [
     "Sensors",
     "Cameras",
     "Command Connectors",
+    # Footage archives (look-back window = constants.SEARCH_DURATION days)
+    "Archives",
     "Guest Sites",
     "Mailroom Sites",
     # Access Control
@@ -232,6 +234,7 @@ ASSET_CATEGORIES = [
     "Schedules",
     "Access Levels",
     "Access Groups",
+    "Access Users",
     "Scenarios",
     # Alarms
     "Keypads",
@@ -250,6 +253,8 @@ ASSET_CATEGORIES = [
     "Sites",
     # Users & misc
     "Command Users",
+    # Security entity groups (only non-Verkada-managed are surfaced)
+    "Groups",
     "Unassigned Devices",
 ]
 
@@ -267,6 +272,7 @@ CATEGORY_GROUPS = {
         "Schedules",
         "Access Levels",
         "Access Groups",
+        "Access Users",
         "Scenarios",
     ],
     "Alarms": [
@@ -308,6 +314,8 @@ CATEGORY_GROUPS = {
 #     so they are intentionally absent here.
 DELETION_ORDER = [
     "Command Users",
+    # Security entity groups — after Command Users, before Doors.
+    "Groups",
     # Access devices that must precede Cameras
     "Doors",
     "Access Station Pro",
@@ -317,6 +325,8 @@ DELETION_ORDER = [
     "Sensors",
     "Cameras",
     "Command Connectors",
+    # Footage archives — after Command Connectors, before Guest Sites.
+    "Archives",
     "Guest Sites",
     "Mailroom Sites",
     # Rest of Access Control
@@ -332,6 +342,8 @@ DELETION_ORDER = [
     # keeps Scenarios visually at the end of the Access Control tile.
     "Scenarios",
     "Access Groups",
+    # Access users — after Access Groups, before Keypads (Access Control).
+    "Access Users",
     # Alarms
     "Keypads",
     "Expanders",
@@ -367,6 +379,7 @@ _INTERNAL_GETTERS = {
     "Desk Stations": "get_desk_station",
     "Sensors": "get_sensor",
     "Command Connectors": "get_connector",
+    "Archives": "get_archive",
     "Mailroom Sites": "get_mailroom_site",
     # Access Control
     "Doors": "get_door",
@@ -378,6 +391,7 @@ _INTERNAL_GETTERS = {
     "Schedules": "get_schedule",
     "Access Levels": "get_access_level",
     "Access Groups": "get_access_group",
+    "Access Users": "get_access_user",
     "Scenarios": "get_scenario",
     # Sites (camera groups)
     "Sites": "get_site",
@@ -394,6 +408,8 @@ _INTERNAL_GETTERS = {
     "Alarm Panels": "get_alarm_panel_all",
     "Alarm Systems": "get_alarm_system",
     "Alarm Sites": "get_alarm_site",
+    # Security entity groups
+    "Groups": "get_group",
     # Misc
     "Unassigned Devices": "get_unassigned_device",
 }
@@ -405,8 +421,11 @@ _INTERNAL_DELETERS = {
     "Sensors": "delete_sensor",
     "Cameras": "delete_camera",
     "Command Connectors": "delete_connector",
+    "Archives": "delete_archive",
     "Guest Sites": "delete_guest_site",
     "Mailroom Sites": "delete_mailroom_site",
+    # Security entity groups
+    "Groups": "delete_group",
     # Access Control
     "Doors": "delete_door",
     "Access Station Pro": "delete_access_station_pro",
@@ -417,6 +436,7 @@ _INTERNAL_DELETERS = {
     "Schedules": "delete_schedule",
     "Access Levels": "delete_access_level",
     "Access Groups": "delete_access_group",
+    "Access Users": "delete_access_user",
     "Scenarios": "delete_scenario",
     # Sites (camera groups) — _delete_one falls back to rename_site
     # ("<name>-<mm/dd/yy>") when the delete is rejected.
