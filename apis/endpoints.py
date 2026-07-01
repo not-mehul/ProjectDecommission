@@ -740,6 +740,36 @@ ENDPOINTS: dict[str, Endpoint] = {
             "userId": "<user_id>",
         },
     ),
+    "group.list": Endpoint(
+        method="POST",
+        subdomain="vauth",
+        path="security_entity_group/list",
+        payload={
+            "organizationId": "<org_id>",
+            "includeMembers": True,
+            "includeMemberCount": False,
+        },
+        response={
+            "securityEntityGroup": [
+                {
+                    "entityGroupId": "<group_id>",
+                    "name": "13 Admins",
+                    "verkadaManaged": False,
+                },
+            ],
+        },
+    ),
+    "group.delete": Endpoint(
+        method="POST",
+        subdomain="vauth",
+        path="security_entity_group/delete",
+        payload={
+            "securityEntityGroupIds": [
+                "<group_id>",
+            ]
+        },
+        response={},
+    ),
     # ── Cameras ──────────────────────────────────────────────────────
     "camera.create.name": Endpoint(
         method="POST",
