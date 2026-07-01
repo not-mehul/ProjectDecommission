@@ -842,6 +842,38 @@ ENDPOINTS: dict[str, Endpoint] = {
         payload={"cameraId": "<camera_id>"},
         response={},
     ),
+    "archive.list": Endpoint(
+        method="POST",
+        subdomain="vsubmit",
+        path="library/v2/archive/list/org",
+        payload={
+            "organizationId": "<org_id>",
+            "pageSize": 99,
+            "instantLastKey": None,
+            "legacyLastKey": None,
+            "first": True,
+            "sortAscending": False,
+            "sortBy": "creation_time",
+            "filters": {
+                "footageTimeMin": "<epoch time - now>",
+                "footageTimeMax": "<epoch time - SEARCH_DURATION days ago>",
+            },
+        },
+        response={
+            "instant": [
+                {
+                    "archiveId": "<archive_id>",
+                },
+            ],
+        },
+    ),
+    "archive.delete": Endpoint(
+        method="POST",
+        subdomain="vsubmit",
+        path="library/v2/archive/delete",
+        payload={"archiveIds": ["<archive_id>"]},
+        response={"<archive_id>": "success"},
+    ),
     "command_connector.create": Endpoint(
         method="POST",
         subdomain="vprovision",
@@ -1242,6 +1274,36 @@ ENDPOINTS: dict[str, Endpoint] = {
                 }
             ],
         },
+    ),
+    "access_user.list": Endpoint(
+        method="POST",
+        subdomain="vcerberus",
+        path="access/v2/user/users/search",
+        payload={
+            "organizationId": "<org_id>",
+            "status": ["access_granted"],
+            "status_filter_v2": True,
+            "paging": {"pageSize": 99, "sortOrder": ["first_name:asc", "email:asc"]},
+        },
+        response={
+            "nextPageToken": "WyJaYWNoYXJ5IiwgbnVsbCwgIjg3MDY1OTIxLWVjY2QtNDg5OS1iODg0LTE5ZGViMWUwYTJlNSJd",
+            "total": 1,
+            "users": [
+                {"fullName": "<full_name>", "userId": "<user_id>"},
+            ],
+        },
+    ),
+    "access_user.delete": Endpoint(
+        method="POST",
+        subdomain=api_region,
+        path="users/delete",
+        payload={
+            "organizationId": "<org_id>",
+            "userIds": [
+                "<user_id>",
+            ],
+        },
+        response={},
     ),
     "access_group.create": Endpoint(
         method="POST",

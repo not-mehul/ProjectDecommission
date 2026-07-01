@@ -63,6 +63,9 @@ SESSION_WARNING_MINUTES = 5
 SESSION_EXTENSION_MINUTES = 15
 SESSION_MAX_EXTENSIONS = 2
 
+# Earliest Search Duration
+SEARCH_DURATION = 7
+
 # API
 # Used as a prefix for generated External API key names. The internal client
 # appends a unique suffix (e.g. a unix timestamp) at call time, producing
