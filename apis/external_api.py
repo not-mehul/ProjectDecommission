@@ -103,6 +103,7 @@ class VerkadaExternalAPIClient:
         params: dict | None = None,
         error_context: str,
         empty_on_400_signature: str | None = None,
+        _allow_refresh: bool = True,
     ) -> dict:
         """
         Execute an authenticated public-API request and return parsed JSON.
@@ -139,6 +140,21 @@ class VerkadaExternalAPIClient:
         except RequestException as e:
             raise ConnectionError(f"{error_context}: {e}")
 
+        # The API token is short-lived and generated once when this client is
+        # created. On a long scan/delete it can expire mid-run, surfacing as a
+        # 401 "failed to authenticate". Regenerate the token once and retry.
+        if response.status_code in (401, 403) and _allow_refresh:
+            self.api_token = self._generate_api_token()
+            return self._request(
+                method,
+                url,
+                json=json,
+                params=params,
+                error_context=error_context,
+                empty_on_400_signature=empty_on_400_signature,
+                _allow_refresh=False,
+            )
+
         # Tolerate the "400 = no items" signature some endpoints use.
         if (
             empty_on_400_signature is not None
@@ -167,7 +183,10 @@ class VerkadaExternalAPIClient:
             msg = (
                 data_dict.get("message", response.text) if data_dict else response.text
             )
-            raise ConnectionError(f"{error_context}: {msg or 'unknown error'}")
+            raise ConnectionError(
+                f"{error_context} (HTTP {response.status_code}): "
+                f"{msg or 'unknown error'}"
+            )
 
         data_dict.setdefault("__status_code__", response.status_code)
         return data_dict
