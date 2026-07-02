@@ -1246,8 +1246,9 @@ class VerkadaInternalAPIClient:
         return self._fetch_list(
             "access_controller.list",
             response_key="accessControllers",
-            filter_func=lambda x: x.get("vconductorModelId")
-            != self._ACCESS_STATION_PRO_MODEL,
+            filter_func=lambda x: (
+                x.get("vconductorModelId") != self._ACCESS_STATION_PRO_MODEL
+            ),
             mapping_func=lambda x: {
                 "id": x["accessControllerId"],
                 "name": x["name"],
@@ -1260,8 +1261,9 @@ class VerkadaInternalAPIClient:
         return self._fetch_list(
             "face_station_pro.list",
             response_key="accessControllers",
-            filter_func=lambda x: x.get("vconductorModelId")
-            == self._ACCESS_STATION_PRO_MODEL,
+            filter_func=lambda x: (
+                x.get("vconductorModelId") == self._ACCESS_STATION_PRO_MODEL
+            ),
             mapping_func=lambda x: {
                 "id": x["accessControllerId"],
                 "name": x.get("name"),
@@ -1446,9 +1448,7 @@ class VerkadaInternalAPIClient:
         get_schedule's `delete_objects`.
         """
         if not delete_objects:
-            raise ValueError(
-                "delete_schedule requires at least one schedule object"
-            )
+            raise ValueError("delete_schedule requires at least one schedule object")
         payload = [{**obj, "deleted": True} for obj in delete_objects]
         self._delete(
             "schedule.delete",
@@ -1598,6 +1598,7 @@ class VerkadaInternalAPIClient:
                     "sortOrder": ["first_name:asc", "email:asc"],
                 },
             },
+            filter_func=lambda u: u.get("userId") != self.user_id,
             mapping_func=lambda u: {"id": u["userId"], "name": u.get("fullName")},
         )
 

@@ -904,6 +904,27 @@ ENDPOINTS: dict[str, Endpoint] = {
         payload={"archiveIds": ["<archive_id>"]},
         response={"<archive_id>": "success"},
     ),
+    "incident.list": Endpoint(
+        method="POST",
+        subdomain="vinvestigate",
+        path="v2/incident/list",
+        payload={"organizationId": "<org_id>", "limit": 99},
+        response={
+            "incidents": [
+                {
+                    "incidentId": "<incident_id>",
+                    "name": "<incident_name>",
+                }
+            ],
+        },
+    ),
+    "incident.delete": Endpoint(
+        method="POST",
+        subdomain="vinvestigate",
+        path="v2/incident/delete",
+        payload={"incidentId": "<incident_id>"},
+        response={"success": True},
+    ),
     "command_connector.create": Endpoint(
         method="POST",
         subdomain="vprovision",

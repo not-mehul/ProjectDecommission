@@ -212,6 +212,13 @@ class VerkadaExternalAPIClient:
                         "serial_number": x["serial"],
                     }
 
+            case "persons_of_interest":
+                object_type = "persons_of_interest"
+                path = "cameras/v1/people/person_of_interest"
+
+                def mapping_func(x: dict[str, Any]) -> dict[str, Any]:
+                    return {"id": x["person_id"], "name": x["label"]}
+
             case "guest_sites":
                 object_type = "guest_sites"
                 path = "guest/v1/sites"
@@ -267,6 +274,9 @@ class VerkadaExternalAPIClient:
 
     def get_cameras(self) -> list[dict[str, Any]]:
         return self.get_object("cameras")
+
+    def get_person_of_interest(self) -> list[dict[str, Any]]:
+        return self.get_object("persons_of_interest")
 
     def get_access_users(self) -> list[dict[str, Any]]:
         return self.get_users()
@@ -490,3 +500,23 @@ class VerkadaExternalAPIClient:
 
     def delete_access_user(self, user_id: str) -> None:
         return self.delete_user(user_id)
+
+    def delete_persons_of_interest(self, person_id: str) -> None:
+        """
+        Delete a Persons of Interest from Verkada Command
+        """
+        url = f"https://{self.region}.verkada.com/cameras/v1/people/person_of_interest"
+        data = self._request(
+            "DELETE",
+            url,
+            params={"person_id": person_id},
+            error_context=f"Failed to delete Person of Interest {person_id}",
+        )
+
+        log_api_call(
+            "DELETE",
+            f"{self.region}.verkada.com/cameras/v1/people/person_of_interest",
+            f'{{"user_id": "{person_id}"}}',
+            self._status(data),
+            "{}",
+        )
