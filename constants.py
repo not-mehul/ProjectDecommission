@@ -234,7 +234,6 @@ ASSET_CATEGORIES = [
     "Schedules",
     "Access Levels",
     "Access Groups",
-    "Access Users",
     "Scenarios",
     # Alarms
     "Keypads",
@@ -272,7 +271,6 @@ CATEGORY_GROUPS = {
         "Schedules",
         "Access Levels",
         "Access Groups",
-        "Access Users",
         "Scenarios",
     ],
     "Alarms": [
@@ -342,8 +340,6 @@ DELETION_ORDER = [
     # keeps Scenarios visually at the end of the Access Control tile.
     "Scenarios",
     "Access Groups",
-    # Access users — after Access Groups, before Keypads (Access Control).
-    "Access Users",
     # Alarms
     "Keypads",
     "Expanders",
@@ -389,9 +385,6 @@ _INTERNAL_GETTERS = {
     "Buildings": "get_building",
     "Visitor Access": "get_visitor_access",
     "Schedules": "get_schedule",
-    "Access Levels": "get_access_level",
-    "Access Groups": "get_access_group",
-    "Access Users": "get_access_user",
     "Scenarios": "get_scenario",
     # Sites (camera groups)
     "Sites": "get_site",
@@ -434,9 +427,6 @@ _INTERNAL_DELETERS = {
     "Buildings": "delete_building",
     "Visitor Access": "delete_visitor_access",
     "Schedules": "delete_schedule",
-    "Access Levels": "delete_access_level",
-    "Access Groups": "delete_access_group",
-    "Access Users": "delete_access_user",
     "Scenarios": "delete_scenario",
     # Sites (camera groups) — _delete_one falls back to rename_site
     # ("<name>-<mm/dd/yy>") when the delete is rejected.
@@ -459,8 +449,12 @@ _INTERNAL_DELETERS = {
 _EXTERNAL_GETTERS = {
     "Cameras": "get_cameras",
     "Guest Sites": "get_guest_sites",
+    "Access Levels": "get_access_levels",
+    "Access Groups": "get_access_groups",
 }
 
 _EXTERNAL_DELETERS = {
     "Command Users": "delete_access_user",
+    "Access Levels": "delete_access_level",
+    "Access Groups": "delete_access_group",
 }
