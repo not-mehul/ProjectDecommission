@@ -33,6 +33,7 @@ v3.3
 
 --- NEWS ---
 - When the Alarm is triggered, you will not be able to delete an Alarm Site. It needs to be resolved to delete an alarm site.
+- Visitor Access Level and Visits are not being deleted causing the issue of a undeleted site!
 
 
 --- TODO ---
