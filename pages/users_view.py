@@ -15,13 +15,11 @@ import flet as ft
 
 from apis.external_api import VerkadaExternalAPIClient
 from constants import (
-    BG,
     BORDER,
     CARD_PADDING,
     CARD_SHADOW,
     ERROR,
     FIELD_SPACING,
-    PAGE_PADDING,
     PRIMARY,
     SECONDARY,
     SURFACE,
@@ -30,6 +28,8 @@ from constants import (
     WARNING,
     load_internal_invite_defaults,
 )
+from components import Stepper
+from pages.app_shell import ToolView
 from utils.db import load_import_settings, save_import_settings
 from utils.executor import _executor
 from utils.session import get_external_client, get_internal_client, set_external_client
@@ -97,16 +97,18 @@ def _strip(value: str | None) -> str:
     return (value or "").strip()
 
 
-class UsersView(ft.View):
-    def __init__(self, push_route, pop_route, **kwargs):
-        super().__init__(route="/users", bgcolor=BG, padding=PAGE_PADDING, **kwargs)
-        self.push_route = push_route
-        self.pop_route = pop_route
+class UsersView(ToolView):
+    def __init__(self, push_route, pop_route):
+        super().__init__(
+            push_route,
+            pop_route,
+            route="/users",
+            title="User Management",
+        )
         self._current_step = 0
         self._sites: list[dict] = []
         self._participants: list[dict] = []
         self._selected_date = datetime.now()
-        self._step_circles: list[ft.Container] = []
 
         self._build_ui()
 
@@ -125,31 +127,15 @@ class UsersView(ft.View):
         for i, step in enumerate(self._steps):
             step.visible = i == 0
 
-        header = ft.Row(
-            [
-                ft.IconButton(
-                    icon=ft.Icons.ARROW_BACK,
-                    icon_color=TEXT_SECONDARY,
-                    on_click=self._on_back,
-                ),
-                ft.Text(
-                    "User Management",
-                    size=22,
-                    color=TEXT_PRIMARY,
-                    weight=ft.FontWeight.W_600,
-                ),
-            ],
-        )
-
         card_content: list[ft.Control] = [self._step_indicators]
         card_content.extend(self._steps)
 
         card = ft.Container(
             bgcolor=SURFACE,
             border_radius=12,
-            border=ft.border.all(1, BORDER),
+            border=ft.Border.all(1, BORDER),
             shadow=CARD_SHADOW,
-            padding=ft.padding.all(CARD_PADDING),
+            padding=ft.Padding.all(CARD_PADDING),
             content=ft.Column(
                 card_content,
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
@@ -159,69 +145,23 @@ class UsersView(ft.View):
             expand=True,
         )
 
-        self.controls = [
-            ft.Column([header, ft.Container(height=10), card], expand=True)
-        ]
+        self.mount(card)
 
     # ------------------------------------------------------------------
     # Step indicator strip
     # ------------------------------------------------------------------
 
-    def _build_step_indicators(self) -> ft.Row:
-        indicators: list[ft.Control] = []
-        self._step_circles.clear()
-        for i, label in enumerate(_STEP_LABELS):
-            color = PRIMARY if i == 0 else BORDER
-            circle = ft.Container(
-                width=32,
-                height=32,
-                border_radius=16,
-                bgcolor=color,
-                content=ft.Text(
-                    str(i + 1),
-                    color=TEXT_PRIMARY,
-                    size=14,
-                    text_align=ft.TextAlign.CENTER,
-                ),
-                alignment=ft.Alignment.CENTER,
-            )
-            self._step_circles.append(circle)
-            indicators.append(
-                ft.Column(
-                    [
-                        circle,
-                        ft.Text(
-                            label,
-                            size=11,
-                            color=TEXT_SECONDARY,
-                            text_align=ft.TextAlign.CENTER,
-                        ),
-                    ],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=4,
-                )
-            )
-            if i < len(_STEP_LABELS) - 1:
-                indicators.append(
-                    ft.Container(
-                        width=40,
-                        height=2,
-                        bgcolor=BORDER,
-                        margin=ft.margin.only(bottom=18),
-                    )
-                )
-        return ft.Row(indicators, alignment=ft.MainAxisAlignment.CENTER, spacing=8)
+    def _build_step_indicators(self) -> ft.Control:
+        """Build the shared Stepper for the four invite steps."""
+        self._stepper = Stepper(_STEP_LABELS, current=0)
+        return ft.Container(
+            content=self._stepper,
+            padding=ft.Padding.only(bottom=18),
+        )
 
     def _update_step_indicators(self):
-        """Recolor the circles based on _current_step. Uses the saved circle
-        list so we don't have to re-walk the indicator row's children."""
-        for i, circle in enumerate(self._step_circles):
-            if i < self._current_step:
-                circle.bgcolor = SECONDARY
-            elif i == self._current_step:
-                circle.bgcolor = PRIMARY
-            else:
-                circle.bgcolor = BORDER
+        """Advance the shared Stepper to the current step."""
+        self._stepper.set_active(self._current_step)
 
     # ------------------------------------------------------------------
     # Step 1: API Key
@@ -359,9 +299,9 @@ class UsersView(ft.View):
             value=self._selected_date,
             on_change=self._on_date_change,
         )
-        e.page.overlay.append(date_picker)
-        date_picker.open = True
-        e.page.update()
+        # Flet 0.85 presents the picker via show_dialog rather than the old
+        # overlay-append + .open pattern.
+        e.page.show_dialog(date_picker)
 
     def _on_date_change(self, e):
         if e.control.value:
@@ -464,7 +404,7 @@ class UsersView(ft.View):
     def _create_participant_row(
         self, first: str = "", last: str = "", email: str = ""
     ) -> ft.Row:
-        compact_padding = ft.padding.symmetric(horizontal=10, vertical=8)
+        compact_padding = ft.Padding.symmetric(horizontal=10, vertical=8)
 
         def _participant_field(value: str, expand: int) -> ft.TextField:
             return ft.TextField(
@@ -587,7 +527,7 @@ class UsersView(ft.View):
         self._invite_progress.controls.append(
             ft.Container(
                 content=ft.Text(summary, color=color, weight=ft.FontWeight.W_600),
-                padding=ft.padding.only(top=10),
+                padding=ft.Padding.only(top=10),
             )
         )
         self._copy_btn.visible = bool(self._invited_records)
@@ -671,9 +611,3 @@ class UsersView(ft.View):
             s.visible = i == step
         self._update_step_indicators()
         page.update()
-
-    def _on_back(self, e):
-        if self._current_step > 0:
-            self._go_to_step(self._current_step - 1, e.page)
-        else:
-            self.push_route("/home")

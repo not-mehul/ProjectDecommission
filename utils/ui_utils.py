@@ -64,14 +64,9 @@ def show_toast(
         behavior=ft.SnackBarBehavior.FLOATING,
         show_close_icon=True,
     )
-    # Newer Flet exposes `page.show_snack_bar`/`page.open()`; fall back to
-    # the overlay-append pattern for older runtimes.
-    if hasattr(page, "open"):
-        page.open(snack)
-    else:
-        page.overlay.append(snack)
-        snack.open = True
-        page.update()
+    # Flet 0.85 shows transient overlays (snackbars, dialogs, pickers) via
+    # page.show_dialog(); the older page.open()/overlay-append pattern is gone.
+    page.show_dialog(snack)
 
 
 def show_alert(page: ft.Page, title: str, message: str):

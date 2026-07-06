@@ -1,8 +1,6 @@
 import json
 from pathlib import Path
 
-import flet as ft
-
 # App Info
 APP_VERSION = "3.2"
 GITHUB_REPO = "not-mehul/vCommander"
@@ -28,19 +26,24 @@ def load_internal_invite_defaults() -> dict | None:
 # Flip back to False before any real testing or deployment.
 DEV_SKIP_LOGIN = False
 
-# Colors - Dark Theme with Pastel Accents
-BG = "#1a1a1a"
-SURFACE = "#2a2a2a"
-BORDER = "#3a3a3a"
-PRIMARY = "#7eb8da"
-SECONDARY = "#8fd4b0"
-WARNING = "#f0b87e"
-ERROR = "#e8827a"
-TEXT_PRIMARY = "#e0e0e0"
-# Bumped from #a0a0a0 → #b8b8b8 for better contrast on the dark BG;
-# the prior value sat at ~3.4:1 contrast (below WCAG AA for small text),
-# the new value clears 5:1 and is visually indistinguishable.
-TEXT_SECONDARY = "#b8b8b8"
+# Colors — now sourced from the design system in `theme.py`. These names are
+# re-exported aliases kept for backwards compatibility so existing views keep
+# working unchanged; new code should import semantic tokens from `theme`
+# directly (theme.ACCENT, theme.SUCCESS, theme.DANGER, …). The dark-mode
+# values are identical to the originals, so this is a pure indirection with
+# no visual change — but it routes every view through a single, swappable
+# palette (enabling the light/dark toggle later).
+from theme import (  # noqa: E402
+    BG,
+    BORDER,
+    ERROR,
+    PRIMARY,
+    SECONDARY,
+    SURFACE,
+    TEXT_PRIMARY,
+    TEXT_SECONDARY,
+    WARNING,
+)
 
 # Window
 MIN_WIDTH = 1100
@@ -54,6 +57,14 @@ FIELD_SPACING = 15
 # Session
 SESSION_TIMEOUT_MINUTES = 30
 SESSION_WARNING_MINUTES = 5
+# Bounded "Extend session": each extension adds this many minutes, capped at
+# SESSION_MAX_EXTENSIONS per session so the absolute-limit model still holds
+# (it can't be reset indefinitely by navigating/clicking).
+SESSION_EXTENSION_MINUTES = 15
+SESSION_MAX_EXTENSIONS = 2
+
+# Earliest Search Duration
+SEARCH_DURATION = 7
 
 # API
 # Used as a prefix for generated External API key names. The internal client
@@ -61,13 +72,8 @@ SESSION_WARNING_MINUTES = 5
 # names like "vCommander - Automation API - v2.0.1 - 1714316400".
 API_NAME = "vCommander - Automation API - v" + APP_VERSION + " - "
 
-# Card Shadow
-CARD_SHADOW = ft.BoxShadow(
-    spread_radius=0,
-    blur_radius=12,
-    color=ft.Colors.with_opacity(0.3, "#000000"),
-    offset=ft.Offset(0, 4),
-)
+# Card Shadow — re-exported from the design system (elevation level 1).
+from theme import CARD_SHADOW  # noqa: E402,F401
 
 # ----------------------------------------------------------------------
 # Commission constants
@@ -216,6 +222,8 @@ ASSET_CATEGORIES = [
     "Sensors",
     "Cameras",
     "Command Connectors",
+    # Footage archives (look-back window = constants.SEARCH_DURATION days)
+    "Archives",
     "Guest Sites",
     "Mailroom Sites",
     # Access Control
@@ -244,6 +252,8 @@ ASSET_CATEGORIES = [
     "Sites",
     # Users & misc
     "Command Users",
+    # Security entity groups (only non-Verkada-managed are surfaced)
+    "Groups",
     "Unassigned Devices",
 ]
 
@@ -302,6 +312,8 @@ CATEGORY_GROUPS = {
 #     so they are intentionally absent here.
 DELETION_ORDER = [
     "Command Users",
+    # Security entity groups — after Command Users, before Doors.
+    "Groups",
     # Access devices that must precede Cameras
     "Doors",
     "Access Station Pro",
@@ -311,6 +323,8 @@ DELETION_ORDER = [
     "Sensors",
     "Cameras",
     "Command Connectors",
+    # Footage archives — after Command Connectors, before Guest Sites.
+    "Archives",
     "Guest Sites",
     "Mailroom Sites",
     # Rest of Access Control
@@ -361,6 +375,7 @@ _INTERNAL_GETTERS = {
     "Desk Stations": "get_desk_station",
     "Sensors": "get_sensor",
     "Command Connectors": "get_connector",
+    "Archives": "get_archive",
     "Mailroom Sites": "get_mailroom_site",
     # Access Control
     "Doors": "get_door",
@@ -370,8 +385,6 @@ _INTERNAL_GETTERS = {
     "Buildings": "get_building",
     "Visitor Access": "get_visitor_access",
     "Schedules": "get_schedule",
-    "Access Levels": "get_access_level",
-    "Access Groups": "get_access_group",
     "Scenarios": "get_scenario",
     # Sites (camera groups)
     "Sites": "get_site",
@@ -388,6 +401,8 @@ _INTERNAL_GETTERS = {
     "Alarm Panels": "get_alarm_panel_all",
     "Alarm Systems": "get_alarm_system",
     "Alarm Sites": "get_alarm_site",
+    # Security entity groups
+    "Groups": "get_group",
     # Misc
     "Unassigned Devices": "get_unassigned_device",
 }
@@ -399,8 +414,11 @@ _INTERNAL_DELETERS = {
     "Sensors": "delete_sensor",
     "Cameras": "delete_camera",
     "Command Connectors": "delete_connector",
+    "Archives": "delete_archive",
     "Guest Sites": "delete_guest_site",
     "Mailroom Sites": "delete_mailroom_site",
+    # Security entity groups
+    "Groups": "delete_group",
     # Access Control
     "Doors": "delete_door",
     "Access Station Pro": "delete_access_station_pro",
@@ -409,8 +427,6 @@ _INTERNAL_DELETERS = {
     "Buildings": "delete_building",
     "Visitor Access": "delete_visitor_access",
     "Schedules": "delete_schedule",
-    "Access Levels": "delete_access_level",
-    "Access Groups": "delete_access_group",
     "Scenarios": "delete_scenario",
     # Sites (camera groups) — _delete_one falls back to rename_site
     # ("<name>-<mm/dd/yy>") when the delete is rejected.
@@ -433,8 +449,12 @@ _INTERNAL_DELETERS = {
 _EXTERNAL_GETTERS = {
     "Cameras": "get_cameras",
     "Guest Sites": "get_guest_sites",
+    "Access Levels": "get_access_levels",
+    "Access Groups": "get_access_groups",
 }
 
 _EXTERNAL_DELETERS = {
     "Command Users": "delete_access_user",
+    "Access Levels": "delete_access_level",
+    "Access Groups": "delete_access_group",
 }

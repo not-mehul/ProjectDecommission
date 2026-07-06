@@ -14,6 +14,7 @@ import os
 
 import flet as ft
 
+import theme
 from apis.external_api import VerkadaExternalAPIClient
 from constants import (
     AS_ACCESS_LEVEL_NAME,
@@ -27,7 +28,6 @@ from constants import (
     AS_KEYPAD_NAME,
     AS_PANEL_NAME,
     AS_SITE_NAME,
-    BG,
     BORDER,
     BUILDING_PROVISION_SECONDS,
     CARD_PADDING,
@@ -44,7 +44,6 @@ from constants import (
     # ESS_VISITOR_ACCESS_NAME,
     FIELD_SPACING,
     HQ_TIMEZONE,
-    PAGE_PADDING,
     PRIMARY,
     ROLE_PROPAGATION_SECONDS,
     SECONDARY,
@@ -70,28 +69,48 @@ from constants import (
     VSS_SITE_NAME,
     WARNING,
 )
+from components import (
+    ProgressHeader,
+    RawLogPanel,
+    Stepper,
+    banner,
+    ghost_button,
+    section_header,
+    status_row,
+    stat_row,
+)
+from pages.app_shell import ToolView
 from utils.cancellation import CancellationToken
 from utils.executor import _executor
+from utils.export import export_csv
 from utils.session import get_internal_client, set_external_client
-from utils.ui_utils import set_button_loading, show_toast
+from utils.ui_utils import show_alert, show_toast
 
 _ASSETS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets"
 )
 
+_COMMISSION_STEPS = ["Configure", "Review", "Run", "Report"]
 
-class CommissionView(ft.View):
-    def __init__(self, push_route, pop_route, **kwargs):
+
+class CommissionView(ToolView):
+    def __init__(self, push_route, pop_route):
         super().__init__(
-            route="/commission", bgcolor=BG, padding=PAGE_PADDING, **kwargs
+            push_route,
+            pop_route,
+            route="/commission",
+            title="Commission Organization",
         )
-        self.push_route = push_route
-        self.pop_route = pop_route
         self._kits: dict[str, dict[str, str]] = {}
         self._device_fields: dict[str, ft.TextField] = {}
         # Cooperative cancel for the commission step loop. Checked
         # between steps; the in-flight step is allowed to complete.
         self._cancel_token: CancellationToken | None = None
+        # Run tracking for the structured progress/report screen.
+        self._steps_done = 0
+        self._steps_failed = 0
+        self._failures: list[tuple[str, str]] = []
+        self._run_log: list[str] = []
         self._load_kits()
         self._build_ui()
 
@@ -124,6 +143,7 @@ class CommissionView(ft.View):
         self.template_dropdown = ft.Dropdown(
             label="Template",
             options=template_options,
+            expand=1,
             border_color=BORDER,
             focused_border_color=PRIMARY,
             color=TEXT_PRIMARY,
@@ -137,6 +157,7 @@ class CommissionView(ft.View):
         self.kit_dropdown = ft.Dropdown(
             label="Kit",
             options=kit_options,
+            expand=1,
             border_color=BORDER,
             focused_border_color=PRIMARY,
             color=TEXT_PRIMARY,
@@ -160,20 +181,22 @@ class CommissionView(ft.View):
             on_click=self._add_user_row,
         )
 
+        # Configure-step primary action advances to the Review summary
+        # rather than running immediately.
         self.commission_btn = ft.ElevatedButton(
             content=ft.Text(
-                "Commission Organization",
+                "Review",
                 color=TEXT_PRIMARY,
                 weight=ft.FontWeight.W_600,
             ),
             bgcolor=PRIMARY,
             style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)),
             height=45,
-            on_click=self._on_commission,
+            on_click=self._on_review,
             expand=True,
         )
-        # Cancel sits next to the primary button; hidden until the run
-        # starts, re-hidden when it finishes.
+        # Cancel is shown during the Run step (next to the live progress),
+        # hidden otherwise.
         self.cancel_btn = ft.OutlinedButton(
             content=ft.Text("Cancel", color=ERROR, weight=ft.FontWeight.W_500),
             style=ft.ButtonStyle(
@@ -184,20 +207,14 @@ class CommissionView(ft.View):
             on_click=self._on_cancel,
             visible=False,
         )
-        self._button_row = ft.Row(
-            [self.commission_btn, self.cancel_btn],
-            spacing=10,
-        )
+        self._button_row = ft.Row([self.commission_btn], spacing=10)
 
         self._progress_column = ft.Column(spacing=8, visible=False)
 
         self._form_section = ft.Column(
             [
                 ft.Row(
-                    [
-                        ft.Container(content=self.template_dropdown, expand=1),
-                        ft.Container(content=self.kit_dropdown, expand=1),
-                    ],
+                    [self.template_dropdown, self.kit_dropdown],
                     spacing=FIELD_SPACING,
                 ),
                 ft.Container(height=4),
@@ -219,14 +236,45 @@ class CommissionView(ft.View):
             spacing=FIELD_SPACING,
         )
 
+        # Configure -> Review -> Run -> Report stepper, plus the Review and
+        # Run panels (hidden until their step). The form_section is the
+        # Configure step; _progress_column is the Run/Report step.
+        self._stepper = Stepper(_COMMISSION_STEPS, current=0)
+        self._review_section = ft.Column(
+            visible=False,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+            spacing=FIELD_SPACING,
+        )
+        # Total commission steps aren't known up front (flows branch by
+        # template), so the run bar is indeterminate and reports live counts.
+        self._progress_header = ProgressHeader(determinate=False)
+        self._run_section = ft.Column(
+            [
+                self._progress_header,
+                ft.Row([self.cancel_btn]),
+                self._progress_column,
+            ],
+            visible=False,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+            spacing=FIELD_SPACING,
+        )
+
         form_card = ft.Container(
             bgcolor=SURFACE,
             border_radius=12,
-            border=ft.border.all(1, BORDER),
+            border=ft.Border.all(1, BORDER),
             shadow=CARD_SHADOW,
-            padding=ft.padding.all(CARD_PADDING),
+            padding=ft.Padding.all(CARD_PADDING),
             content=ft.Column(
-                [self._form_section, self._progress_column],
+                [
+                    ft.Container(
+                        content=self._stepper,
+                        padding=ft.Padding.only(bottom=FIELD_SPACING),
+                    ),
+                    self._form_section,
+                    self._review_section,
+                    self._run_section,
+                ],
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
                 scroll=ft.ScrollMode.ADAPTIVE,
                 spacing=FIELD_SPACING,
@@ -234,28 +282,7 @@ class CommissionView(ft.View):
             expand=True,
         )
 
-        header = ft.Row(
-            [
-                ft.IconButton(
-                    icon=ft.Icons.ARROW_BACK,
-                    icon_color=TEXT_SECONDARY,
-                    on_click=lambda _: self.push_route("/home"),
-                ),
-                ft.Text(
-                    "Commission Organization",
-                    size=22,
-                    color=TEXT_PRIMARY,
-                    weight=ft.FontWeight.W_600,
-                ),
-            ],
-        )
-
-        self.controls = [
-            ft.Column(
-                [header, ft.Container(height=10), form_card],
-                expand=True,
-            )
-        ]
+        self.mount(form_card)
 
     def _make_device_field(self, device_type: str, expand=None) -> ft.TextField:
         field = ft.TextField(
@@ -393,6 +420,107 @@ class CommissionView(ft.View):
         return True, code
 
     # ------------------------------------------------------------------
+    # Review step
+    # ------------------------------------------------------------------
+
+    def _collect_supporting_users(self) -> list[tuple[str, str, str]]:
+        """Pull (first, last, email) tuples from the non-empty user rows."""
+        users: list[tuple[str, str, str]] = []
+        for row in self._users_column.controls:
+            if isinstance(row, ft.Row) and len(row.controls) >= 3:
+                first = (row.controls[0].value or "").strip()
+                last = (row.controls[1].value or "").strip()
+                email = (row.controls[2].value or "").strip()
+                if first or last or email:
+                    users.append((first, last, email))
+        return users
+
+    def _on_review(self, e):
+        """Configure -> Review: validate, then show the pre-flight summary."""
+        ok, code = self._validate_form(e)
+        if not ok:
+            return
+        self._review_section.controls = self._build_review_summary(code)
+        self._stepper.set_active(1)
+        self._form_section.visible = False
+        self._review_section.visible = True
+        self._run_section.visible = False
+        e.page.update()
+
+    def _on_edit(self, e):
+        """Review -> Configure: go back to editing the form."""
+        self._stepper.set_active(0)
+        self._form_section.visible = True
+        self._review_section.visible = False
+        e.page.update()
+
+    def _build_review_summary(self, code: str) -> list[ft.Control]:
+        """Build the Review panel: what will be created + Edit/Confirm."""
+        config = TEMPLATE_FIELDS[code]
+        rows: list[ft.Control] = [
+            stat_row("Template", TEMPLATE_DISPLAY_NAMES.get(code, code)),
+            stat_row("Kit", (self.kit_dropdown.value or "").strip() or "—"),
+        ]
+        for device_type in config["devices"]:
+            rows.append(
+                stat_row(device_type, self._device_serial(device_type) or "—")
+            )
+        if config.get("face_analytics"):
+            rows.append(
+                stat_row(
+                    "Face Analytics",
+                    "On" if self.face_analytics_switch.value else "Off",
+                )
+            )
+        users = self._collect_supporting_users()
+        rows.append(stat_row("Supporting Users", len(users)))
+        for first, last, email in users:
+            rows.append(
+                ft.Text(
+                    f"   • {first} {last}  ·  {email}".rstrip(),
+                    size=12,
+                    color=TEXT_SECONDARY,
+                )
+            )
+
+        inset = ft.Container(
+            bgcolor=theme.SURFACE_VARIANT,
+            border=ft.Border.all(1, BORDER),
+            border_radius=theme.RADIUS_MD,
+            padding=ft.Padding.all(CARD_PADDING),
+            content=ft.Column(rows, spacing=theme.SPACE_SM),
+        )
+
+        confirm_btn = ft.ElevatedButton(
+            content=ft.Text(
+                "Commission Organization",
+                color=TEXT_PRIMARY,
+                weight=ft.FontWeight.W_600,
+            ),
+            bgcolor=PRIMARY,
+            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)),
+            height=45,
+            on_click=self._on_commission,
+            expand=True,
+        )
+
+        return [
+            section_header(
+                "Review", "Confirm what will be created before commissioning."
+            ),
+            inset,
+            ft.Row(
+                [
+                    ghost_button(
+                        "Edit", on_click=self._on_edit, icon=ft.Icons.ARROW_BACK
+                    ),
+                    confirm_btn,
+                ],
+                spacing=10,
+            ),
+        ]
+
+    # ------------------------------------------------------------------
     # Commission orchestration
     # ------------------------------------------------------------------
 
@@ -401,10 +529,19 @@ class CommissionView(ft.View):
         if not ok:
             return
 
-        set_button_loading(self.commission_btn, True, "Commissioning")
+        # Review -> Run: swap panels, advance the stepper, arm cancellation.
+        self._stepper.set_active(2)
+        self._form_section.visible = False
+        self._review_section.visible = False
+        self._run_section.visible = True
         self._progress_column.controls.clear()
         self._progress_column.visible = True
-        # Reset / arm cancellation, surface the Cancel button.
+        # Reset run tracking for the structured progress header / report.
+        self._steps_done = 0
+        self._steps_failed = 0
+        self._failures = []
+        self._run_log = []
+        self._progress_header.set_progress(0, failed=0)
         self._cancel_token = CancellationToken()
         self.cancel_btn.visible = True
         self.cancel_btn.disabled = False
@@ -1051,50 +1188,128 @@ class CommissionView(ft.View):
         page.update()
 
     def _render_summary(self, page, all_success: bool) -> None:
-        """Hide the form, show a final status row plus a 'Return to Home' button.
+        """Run -> Report: a structured result with failures surfaced first.
 
         Branches on the cancel token so a user-aborted run shows a clear
         "Cancelled" header instead of the success/partial-success line.
         """
+        self._stepper.set_active(3)
+
         cancelled = bool(self._cancel_token and self._cancel_token.is_cancelled)
         if cancelled:
-            status_color = WARNING
-            icon_name = ft.Icons.CANCEL
+            kind = "warning"
             message = "Commission cancelled."
+            bar_color = WARNING
         elif all_success:
-            status_color = SECONDARY
-            icon_name = ft.Icons.CHECK_CIRCLE
-            message = "Commission complete!"
+            kind = "success"
+            message = f"Commission complete — {self._steps_done} steps, 0 failed."
+            bar_color = SECONDARY
         else:
-            status_color = WARNING
-            icon_name = ft.Icons.WARNING
-            message = "Commission completed with some errors"
+            kind = "warning"
+            message = (
+                f"Commission completed with errors — {self._steps_done} done, "
+                f"{self._steps_failed} failed."
+            )
+            bar_color = WARNING
 
-        # Hide the Cancel control now that the run is over.
         self.cancel_btn.visible = False
+        self._progress_header.set_progress(
+            self._steps_done, failed=self._steps_failed
+        )
+        self._progress_header.complete(color=bar_color)
 
-        self._form_section.visible = False
-        self._progress_column.controls.append(ft.Container(height=8))
-        self._progress_column.controls.append(
+        # Hide the live chronological step list behind the raw-log disclosure;
+        # the report leads with the outcome and any failures.
+        self._progress_column.visible = False
+
+        report: list[ft.Control] = [banner(message, kind=kind)]
+
+        if self._failures:
+            failure_rows = [
+                status_row("failed", label, detail=err)
+                for label, err in self._failures
+            ]
+            report.append(ft.Container(height=8))
+            report.append(
+                section_header(
+                    "Failed steps", f"{len(self._failures)} step(s) need attention"
+                )
+            )
+            report.extend(failure_rows)
+
+        report.append(ft.Container(height=8))
+        report.append(RawLogPanel(lambda: "\n".join(self._run_log) or "(no steps)"))
+        report.append(ft.Container(height=12))
+        report.append(
             ft.Row(
                 [
-                    ft.Icon(icon_name, color=status_color),
-                    ft.Text(message, color=status_color, weight=ft.FontWeight.W_600),
-                ]
+                    ft.OutlinedButton(
+                        content=ft.Text("Copy log", color=TEXT_SECONDARY),
+                        style=ft.ButtonStyle(
+                            side=ft.BorderSide(1, BORDER),
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
+                        height=42,
+                        on_click=self._on_copy_log,
+                    ),
+                    ft.OutlinedButton(
+                        content=ft.Text("Export report (CSV)", color=TEXT_SECONDARY),
+                        style=ft.ButtonStyle(
+                            side=ft.BorderSide(1, BORDER),
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
+                        height=42,
+                        on_click=self._on_export_report,
+                    ),
+                    ft.ElevatedButton(
+                        content=ft.Text(
+                            "Return to Home",
+                            color=TEXT_PRIMARY,
+                            weight=ft.FontWeight.W_600,
+                        ),
+                        bgcolor=SECONDARY,
+                        style=ft.ButtonStyle(
+                            shape=ft.RoundedRectangleBorder(radius=8)
+                        ),
+                        height=42,
+                        on_click=lambda _: self.push_route("/home"),
+                    ),
+                ],
+                spacing=10,
             )
         )
-        self._progress_column.controls.append(
-            ft.ElevatedButton(
-                content=ft.Text(
-                    "Return to Home", color=TEXT_PRIMARY, weight=ft.FontWeight.W_600
-                ),
-                bgcolor=SECONDARY,
-                style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)),
-                height=42,
-                on_click=lambda _: self.push_route("/home"),
-            )
+        self._run_section.controls.append(
+            ft.Column(report, spacing=8, horizontal_alignment=ft.CrossAxisAlignment.STRETCH)
         )
         page.update()
+
+    async def _on_copy_log(self, e):
+        try:
+            await e.page.clipboard.set("\n".join(self._run_log))
+            show_toast(e.page, "Run log copied to clipboard.", kind="success")
+        except Exception:
+            show_toast(e.page, "Couldn't access the clipboard.", kind="warning")
+
+    def _on_export_report(self, e):
+        rows = [
+            {
+                "Step": label,
+                "Result": "FAILED",
+                "Detail": err,
+            }
+            for label, err in self._failures
+        ]
+        # Include the full chronological log so a clean run still exports.
+        for line in self._run_log:
+            result = "FAILED" if line.startswith("[FAIL]") else "OK"
+            rows.append({"Step": line, "Result": result, "Detail": ""})
+        try:
+            path = export_csv(
+                rows, ["Step", "Result", "Detail"], "commission_report"
+            )
+            show_toast(e.page, f"Report saved to {path}", kind="success", duration_ms=4000)
+        except Exception as ex:
+            show_alert(e.page, "Export Failed", str(ex))
 
     def _on_cancel(self, e):
         """Cancel button: trip the token and disable further clicks.
@@ -1158,11 +1373,22 @@ class CommissionView(ft.View):
             )
             step_text.value = f"{label} — done"
             step_text.color = SECONDARY
+            self._steps_done += 1
+            self._run_log.append(f"[ok]   {label}")
+            self._progress_header.set_progress(
+                self._steps_done, failed=self._steps_failed
+            )
             page.update()
             return True, result
         except Exception as ex:
             step_row.controls[0] = ft.Icon(ft.Icons.ERROR, color=ERROR, size=18)
             step_text.value = f"{label} — failed: {ex}"
             step_text.color = ERROR
+            self._steps_failed += 1
+            self._failures.append((label, str(ex)))
+            self._run_log.append(f"[FAIL] {label}: {ex}")
+            self._progress_header.set_progress(
+                self._steps_done, failed=self._steps_failed
+            )
             page.update()
             return False, None

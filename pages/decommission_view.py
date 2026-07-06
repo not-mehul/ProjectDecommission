@@ -21,7 +21,6 @@ from constants import (
     _INTERNAL_DELETERS,
     _INTERNAL_GETTERS,
     ASSET_CATEGORIES,
-    BG,
     BORDER,
     CARD_PADDING,
     CARD_SHADOW,
@@ -29,7 +28,6 @@ from constants import (
     DELETION_ORDER,
     ERROR,
     FIELD_SPACING,
-    PAGE_PADDING,
     PRIMARY,
     SECONDARY,
     SURFACE,
@@ -37,8 +35,18 @@ from constants import (
     TEXT_SECONDARY,
     WARNING,
 )
+from components import (
+    ProgressHeader,
+    Stepper,
+    banner,
+    section_header,
+    stat_row,
+    status_row,
+)
+from pages.app_shell import ToolView
 from utils.cancellation import CancellationToken
 from utils.executor import _executor
+from utils.export import export_csv
 from utils.logger import log_system
 from utils.session import get_external_client, get_internal_client, set_external_client
 from utils.ui_utils import set_button_loading, show_alert, show_toast
@@ -76,8 +84,20 @@ def _item_descriptor(item: dict, *, include_id: bool = True) -> str:
 SCAN = "scan"
 REVIEW = "review"
 SELECT = "select"
+CONFIRM = "confirm"
 PROCESSING = "processing"
 COMPLETE = "complete"
+
+# Shared stepper labels and the state -> step-index map driving it.
+_DECOMMISSION_STEPS = ["Scan", "Review", "Select", "Confirm", "Run", "Report"]
+_STATE_STEP = {
+    SCAN: 0,
+    REVIEW: 1,
+    SELECT: 2,
+    CONFIRM: 3,
+    PROCESSING: 4,
+    COMPLETE: 5,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -117,13 +137,14 @@ def _section_heading(title: str, subtitle: str | None = None) -> list[ft.Control
     return out
 
 
-class DecommissionView(ft.View):
-    def __init__(self, push_route, pop_route, **kwargs):
+class DecommissionView(ToolView):
+    def __init__(self, push_route, pop_route):
         super().__init__(
-            route="/decommission", bgcolor=BG, padding=PAGE_PADDING, **kwargs
+            push_route,
+            pop_route,
+            route="/decommission",
+            title="Decommission Organization",
         )
-        self.push_route = push_route
-        self.pop_route = pop_route
         self._state = SCAN
         self._assets: dict[str, list[dict]] = {}
         self._selected_categories: dict[str, bool] = {}
@@ -146,22 +167,7 @@ class DecommissionView(ft.View):
     # ------------------------------------------------------------------
 
     def _build_ui(self):
-        header = ft.Row(
-            [
-                ft.IconButton(
-                    icon=ft.Icons.ARROW_BACK,
-                    icon_color=TEXT_SECONDARY,
-                    on_click=lambda _: self.push_route("/home"),
-                ),
-                ft.Text(
-                    "Decommission Organization",
-                    size=22,
-                    color=TEXT_PRIMARY,
-                    weight=ft.FontWeight.W_600,
-                ),
-            ],
-        )
-
+        self._stepper = Stepper(_DECOMMISSION_STEPS, current=0)
         self._content_area = ft.Column(
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             scroll=ft.ScrollMode.ADAPTIVE,
@@ -172,20 +178,28 @@ class DecommissionView(ft.View):
         card = ft.Container(
             bgcolor=SURFACE,
             border_radius=12,
-            border=ft.border.all(1, BORDER),
+            border=ft.Border.all(1, BORDER),
             shadow=CARD_SHADOW,
-            padding=ft.padding.all(CARD_PADDING),
-            content=self._content_area,
+            padding=ft.Padding.all(CARD_PADDING),
+            content=ft.Column(
+                [
+                    ft.Container(
+                        content=self._stepper,
+                        padding=ft.Padding.only(bottom=FIELD_SPACING),
+                    ),
+                    self._content_area,
+                ],
+                expand=True,
+            ),
             expand=True,
         )
 
-        self.controls = [
-            ft.Column([header, ft.Container(height=10), card], expand=True)
-        ]
+        self.mount(card)
 
         self._render_state()
 
     def _render_state(self):
+        self._stepper.set_active(_STATE_STEP.get(self._state, 0))
         self._content_area.controls.clear()
         if self._state == SCAN:
             self._render_scan()
@@ -193,6 +207,8 @@ class DecommissionView(ft.View):
             self._render_review()
         elif self._state == SELECT:
             self._render_select()
+        elif self._state == CONFIRM:
+            self._render_confirm()
         elif self._state == PROCESSING:
             self._render_processing()
         elif self._state == COMPLETE:
@@ -211,6 +227,11 @@ class DecommissionView(ft.View):
         # Lives in the same Column as the scan button so the page composition
         # doesn't shift when prep starts.
         self._prep_progress = ft.Column(spacing=8, visible=False)
+        # Determinate progress + live status for the per-category scan loop.
+        self._scan_progress = ProgressHeader(determinate=True)
+        self._scan_progress_box = ft.Container(
+            content=self._scan_progress, width=440, visible=False
+        )
         self._content_area.controls = [
             ft.Container(height=30),
             ft.Column(
@@ -234,6 +255,8 @@ class DecommissionView(ft.View):
                     self._scan_btn,
                     ft.Container(height=15),
                     self._prep_progress,
+                    ft.Container(height=8),
+                    self._scan_progress_box,
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -241,13 +264,17 @@ class DecommissionView(ft.View):
         ]
 
     async def _on_scan(self, e):
+        # Capture the page now: _render_state() at the end detaches the scan
+        # button that fired this event, so reading `e.page` afterwards would
+        # raise. Use this reference for every page touch in the flow.
+        page = e.page
         set_button_loading(self._scan_btn, True, "Scanning")
 
         # Reveal the prep-step progress block from the scan layout so the
         # rows we append have somewhere to land.
         self._prep_progress.controls.clear()
         self._prep_progress.visible = True
-        e.page.update()
+        page.update()
         await asyncio.sleep(0)
 
         # Clear any stale data from a previous scan so a partial failure never
@@ -281,13 +308,13 @@ class DecommissionView(ft.View):
             # the user expects to remain elevated for any follow-up admin
             # work after the decommission completes.
             await self._run_prep_step(
-                e.page,
+                page,
                 loop,
                 "Enabling Global Site Admin",
                 client.enable_global_site_admin,
             )
             await self._run_prep_step(
-                e.page,
+                page,
                 loop,
                 "Granting Access System Admin",
                 client.enable_access_admin,
@@ -300,7 +327,18 @@ class DecommissionView(ft.View):
             # delete the same device twice (and the second attempt fails
             # because it's already gone or uses the wrong endpoint).
             camera_dedup_serials: set[str] = set()
-            for category in ASSET_CATEGORIES:
+            total = len(ASSET_CATEGORIES)
+            self._scan_progress_box.visible = True
+            self._scan_progress.set_progress(0, total, prefix="Starting scan")
+            page.update()
+            for i, category in enumerate(ASSET_CATEGORIES):
+                # Surface which category is being scanned before the (blocking)
+                # request so the bar + status update as the scan progresses.
+                self._scan_progress.set_progress(
+                    i, total, prefix=f"Scanning {category}"
+                )
+                page.update()
+                await asyncio.sleep(0)
                 items = await self._scan_category(
                     loop, client, ext_client, category, camera_dedup_serials
                 )
@@ -312,13 +350,16 @@ class DecommissionView(ft.View):
                     }
                 self._assets[category] = items
 
+            self._scan_progress.set_progress(total, total, prefix="Scan complete")
+            page.update()
+
             self._state = REVIEW
             self._render_state()
-            e.page.update()
+            page.update()
         except Exception as ex:
             self._assets = {}
             set_button_loading(self._scan_btn, False, "Scan Organization")
-            show_alert(e.page, "Scan Failed", str(ex))
+            show_alert(page, "Scan Failed", str(ex))
 
     async def _run_prep_step(
         self, page, loop: asyncio.AbstractEventLoop, label: str, fn
@@ -413,18 +454,49 @@ class DecommissionView(ft.View):
         for category in ASSET_CATEGORIES:
             count = len(self._assets.get(category, []))
             total += count
-            rows.append(
-                ft.Row(
+            # stat_row mutes zero counts and accents the non-zero ones so the
+            # categories that actually have assets stand out in the long list.
+            rows.append(stat_row(category, count, accent=PRIMARY))
+
+        if total == 0:
+            # Empty state — nothing to delete, so skip straight to a friendly
+            # message + a way out rather than a wall of zeros.
+            self._content_area.controls = [
+                ft.Container(height=40),
+                ft.Column(
                     [
-                        ft.Text(category, color=TEXT_PRIMARY, expand=True),
+                        ft.Icon(
+                            ft.Icons.CHECK_CIRCLE_OUTLINE,
+                            size=48,
+                            color=SECONDARY,
+                        ),
+                        ft.Container(height=10),
                         ft.Text(
-                            str(count),
+                            "No assets found",
+                            size=20,
+                            color=TEXT_PRIMARY,
+                            weight=ft.FontWeight.W_600,
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                        ft.Text(
+                            "This organization is already clean — nothing to "
+                            "decommission.",
+                            size=13,
                             color=TEXT_SECONDARY,
-                            text_align=ft.TextAlign.RIGHT,
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                        ft.Container(height=20),
+                        _make_button(
+                            "Return to Home",
+                            lambda _: self.push_route("/home"),
+                            bgcolor=SECONDARY,
+                            width=240,
                         ),
                     ],
-                )
-            )
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            ]
+            return
 
         self._content_area.controls = [
             *_section_heading(
@@ -438,9 +510,10 @@ class DecommissionView(ft.View):
         ]
 
     def _go_to_select(self, e):
+        page = e.page  # capture before _render_state() detaches the button
         self._state = SELECT
         self._render_state()
-        e.page.update()
+        page.update()
 
     # ------------------------------------------------------------------
     # SELECT state
@@ -474,8 +547,10 @@ class DecommissionView(ft.View):
                 continue
             tiles.append(self._build_leaf_tile(category, items))
 
+        # SELECT no longer deletes directly — it advances to the CONFIRM
+        # summary, where the destructive action is confirmed.
         self._delete_btn = _make_button(
-            "Delete Selected", self._on_delete, bgcolor=ERROR
+            "Review Selection", self._on_review_selection
         )
         export_btn = ft.OutlinedButton(
             content=ft.Text(
@@ -506,7 +581,7 @@ class DecommissionView(ft.View):
             focused_border_color=PRIMARY,
             color=TEXT_PRIMARY,
             label_style=ft.TextStyle(color=TEXT_SECONDARY),
-            content_padding=ft.padding.symmetric(horizontal=10, vertical=8),
+            content_padding=ft.Padding.symmetric(horizontal=10, vertical=8),
             on_change=self._on_search_change,
             expand=True,
         )
@@ -606,17 +681,17 @@ class DecommissionView(ft.View):
                 controls=[
                     ft.Container(
                         content=item_names,
-                        padding=ft.padding.only(left=40, bottom=10),
+                        padding=ft.Padding.only(left=40, bottom=10),
                     )
                 ],
                 expanded=False,
-                tile_padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                tile_padding=ft.Padding.symmetric(horizontal=10, vertical=5),
             )
 
         # Compact mode: no expansion, just one line per category.
         return ft.Container(
             content=ft.Row([cb, title_text]),
-            padding=ft.padding.symmetric(horizontal=10, vertical=8),
+            padding=ft.Padding.symmetric(horizontal=10, vertical=8),
         )
 
     def _build_group_tile(self, group: str) -> ft.ExpansionTile | None:
@@ -677,13 +752,13 @@ class DecommissionView(ft.View):
             controls=[
                 ft.Container(
                     content=ft.Column(child_tiles, spacing=2),
-                    padding=ft.padding.only(left=20),
+                    padding=ft.Padding.only(left=20),
                 )
             ],
             # Default expanded so the inner per-category counts are visible
             # without an extra click; users can collapse if they want.
             expanded=True,
-            tile_padding=ft.padding.symmetric(horizontal=10, vertical=5),
+            tile_padding=ft.Padding.symmetric(horizontal=10, vertical=5),
         )
 
     def _refresh_parent(self, group: str) -> None:
@@ -796,13 +871,90 @@ class DecommissionView(ft.View):
         except Exception as ex:
             show_alert(e.page, "Export Failed", str(ex))
 
+    # ------------------------------------------------------------------
+    # CONFIRM state — final destructive summary before deletion
+    # ------------------------------------------------------------------
+
+    def _selected_categories_list(self) -> list[str]:
+        return [cat for cat, checked in self._selected_categories.items() if checked]
+
+    def _on_review_selection(self, e):
+        """SELECT -> CONFIRM: show exactly what will be deleted."""
+        page = e.page  # capture before _render_state() detaches the button
+        if not self._selected_categories_list():
+            show_toast(
+                page,
+                "Please select at least one category to delete.",
+                kind="warning",
+            )
+            return
+        self._state = CONFIRM
+        self._render_state()
+        page.update()
+
+    def _back_to_select(self, e):
+        page = e.page  # capture before _render_state() detaches the button
+        self._state = SELECT
+        self._render_state()
+        page.update()
+
+    def _render_confirm(self):
+        selected = set(self._selected_categories_list())
+        rows: list[ft.Control] = []
+        total = 0
+        for category in ASSET_CATEGORIES:
+            if category not in selected:
+                continue
+            count = len(self._assets.get(category, []))
+            total += count
+            rows.append(stat_row(category, count, accent=ERROR))
+
+        confirm_btn = _make_button(
+            f"Delete {total} Asset{'s' if total != 1 else ''}",
+            self._on_delete,
+            bgcolor=ERROR,
+        )
+        back_btn = ft.TextButton(
+            content=ft.Row(
+                [
+                    ft.Icon(ft.Icons.ARROW_BACK, size=16, color=TEXT_SECONDARY),
+                    ft.Text("Back", color=TEXT_SECONDARY),
+                ],
+                spacing=4,
+                tight=True,
+            ),
+            on_click=self._back_to_select,
+        )
+
+        self._content_area.controls = [
+            *_section_heading(
+                "Confirm Deletion",
+                f"{total} asset{'s' if total != 1 else ''} across "
+                f"{len(selected)} categor{'ies' if len(selected) != 1 else 'y'} "
+                "will be permanently removed.",
+            ),
+            banner(
+                "This permanently deletes the selected assets in dependency "
+                "order and cannot be undone.",
+                kind="danger",
+            ),
+            ft.Container(height=10),
+            ft.Column(rows, spacing=8),
+            ft.Container(height=15),
+            ft.Row([back_btn, confirm_btn], spacing=10),
+        ]
+
     async def _on_delete(self, e):
+        # Capture the page up front: _render_state() detaches the button that
+        # fired this event, and after the await below `e.page` would raise
+        # ("Control must be added to the page first").
+        page = e.page
         selected = [
             cat for cat, checked in self._selected_categories.items() if checked
         ]
         if not selected:
             show_toast(
-                e.page,
+                page,
                 "Please select at least one category to delete.",
                 kind="warning",
             )
@@ -810,9 +962,9 @@ class DecommissionView(ft.View):
 
         self._state = PROCESSING
         self._render_state()
-        e.page.update()
+        page.update()
         await asyncio.sleep(0)
-        await self._run_deletions(e.page, selected)
+        await self._run_deletions(page, selected)
 
     # ------------------------------------------------------------------
     # PROCESSING state
@@ -853,11 +1005,11 @@ class DecommissionView(ft.View):
             controls=[
                 ft.Container(
                     content=items_column,
-                    padding=ft.padding.only(left=40, bottom=10),
+                    padding=ft.Padding.only(left=40, bottom=10),
                 )
             ],
             expanded=False,
-            tile_padding=ft.padding.symmetric(horizontal=10, vertical=5),
+            tile_padding=ft.Padding.symmetric(horizontal=10, vertical=5),
         )
         return {
             "tile": tile,
@@ -922,6 +1074,11 @@ class DecommissionView(ft.View):
             self._category_rows[category] = row
             rows.append(row["tile"])
 
+        # Determinate progress — the asset count is known up front.
+        self._progress_header = ProgressHeader(determinate=True)
+        self._progress_header.set_progress(
+            0, sum(len(self._assets[c]) for c in planned), failed=0
+        )
         self._processing_status = ft.Text(
             f"Deleting {sum(len(self._assets[c]) for c in planned)} assets "
             f"across {len(planned)} categories...",
@@ -944,6 +1101,7 @@ class DecommissionView(ft.View):
                 "Click a category to expand its per-item detail. "
                 "Cancel stops after the current item completes.",
             ),
+            self._progress_header,
             self._processing_status,
             ft.Container(height=10),
             ft.Column(rows, spacing=4),
@@ -986,6 +1144,7 @@ class DecommissionView(ft.View):
         )
 
         deleted_total = 0
+        failed_total = 0
         cancelled = False
         for category in planned:
             if cancelled:
@@ -1021,6 +1180,11 @@ class DecommissionView(ft.View):
             self._results[category] = (success, len(items))
             deleted_total += success
             failed = len(items) - success
+            if not cancelled:
+                failed_total += failed
+            self._progress_header.set_progress(
+                deleted_total, grand_total, failed=failed_total
+            )
 
             if cancelled:
                 self._set_category_state(category, "cancelled")
@@ -1061,7 +1225,18 @@ class DecommissionView(ft.View):
                 level="WARN" if deleted_total != grand_total else "INFO",
             )
 
+        # Stash the run totals for the report and fill the progress bar.
+        self._run_deleted = deleted_total
+        self._run_total = grand_total
+        self._run_failed = failed_total
+        self._run_cancelled = cancelled
+        bar_color = (
+            WARNING if (cancelled or failed_total) else SECONDARY
+        )
+        self._progress_header.complete(color=bar_color)
+
         self._state = COMPLETE
+        self._stepper.set_active(_STATE_STEP[COMPLETE])
         self._render_complete()
         page.update()
 
@@ -1145,7 +1320,9 @@ class DecommissionView(ft.View):
         except Exception as ex:
             # Sites get a second chance: a site that refuses deletion is
             # renamed "<name>-<mm/dd/yy>" so its original name is freed
-            # for future commissioning runs.
+            # for future commissioning runs. The rename is a *fallback*, not a
+            # deletion — it is reported as a warning and NOT counted as a
+            # successful removal (the site still exists in the org).
             if category == "Sites":
                 renamed_to = await self._rename_site_fallback(
                     loop, int_client, item_id, item_name
@@ -1156,21 +1333,18 @@ class DecommissionView(ft.View):
                     )
                     step_text.value = (
                         f"  Could not delete {row_label} — renamed to "
-                        f"'{renamed_to}'"
+                        f"'{renamed_to}' (not deleted)"
                     )
                     step_text.color = WARNING
                     if cat_row is not None:
-                        cat_row["success"] += 1
-                        cat_row["counter"].value = (
-                            f"{cat_row['success']} / {cat_row['total']}"
-                        )
+                        cat_row["failed"] += 1
                     page.update()
                     log_system(
                         f"{category}: could not delete {descriptor} ({ex}) — "
-                        f"renamed to '{renamed_to}'",
+                        f"renamed to '{renamed_to}' (counted as not deleted)",
                         level="WARN",
                     )
-                    return True
+                    return False
 
             step_row.controls[0] = ft.Icon(ft.Icons.ERROR, color=ERROR, size=16)
             step_text.value = f"  Failed: {row_label} — {ex}"
@@ -1216,6 +1390,7 @@ class DecommissionView(ft.View):
 
     def _render_complete(self):
         rows = []
+        failures = []
         total_success = 0
         total_items = 0
         skipped = bool(self._cancelled_at)
@@ -1274,6 +1449,16 @@ class DecommissionView(ft.View):
                     spacing=10,
                 )
             )
+            # Surface anything that didn't fully delete (and wasn't a pure
+            # skip) in a failures-first section.
+            if not skipped_cat and success < total:
+                failures.append(
+                    status_row(
+                        "failed" if success == 0 else "partial",
+                        category,
+                        detail=f"{success}/{total} deleted",
+                    )
+                )
 
         if skipped:
             title = f"Decommission Cancelled at {self._cancelled_at}"
@@ -1285,27 +1470,109 @@ class DecommissionView(ft.View):
             overall_ok = total_success == total_items
             title = "Decommission Complete"
             overall_color = SECONDARY if overall_ok else WARNING
-            subtitle = (
-                f"{total_success}/{total_items} total assets deleted successfully."
-            )
+            if overall_ok:
+                subtitle = (
+                    f"All {total_items} assets deleted successfully."
+                )
+            else:
+                remaining = total_items - total_success
+                subtitle = (
+                    f"{total_success}/{total_items} assets deleted — "
+                    f"{remaining} could not be removed."
+                )
 
-        self._content_area.controls = [
-            ft.Text(
-                title,
-                size=18,
-                color=overall_color,
-                weight=ft.FontWeight.W_600,
-            ),
-            ft.Text(subtitle, size=13, color=TEXT_SECONDARY),
-            ft.Container(height=15),
-            ft.Column(rows, spacing=8),
-            ft.Container(height=20),
-            _make_button(
-                "Return to Home",
-                lambda _: self.push_route("/home"),
-                bgcolor=SECONDARY,
-            ),
+        report_kind = "warning" if (skipped or overall_color == WARNING) else "success"
+        controls: list[ft.Control] = [
+            *_section_heading(title),
+            banner(subtitle, kind=report_kind),
         ]
+        if failures:
+            controls.append(ft.Container(height=8))
+            controls.append(
+                section_header(
+                    "Needs attention",
+                    f"{len(failures)} categor"
+                    f"{'ies' if len(failures) != 1 else 'y'} did not fully delete",
+                )
+            )
+            controls.extend(failures)
+        controls.append(ft.Container(height=12))
+        controls.append(section_header("All categories"))
+        controls.append(ft.Column(rows, spacing=8))
+        controls.append(ft.Container(height=20))
+        controls.append(
+            ft.Row(
+                [
+                    ft.OutlinedButton(
+                        content=ft.Text("Copy log", color=TEXT_SECONDARY),
+                        style=ft.ButtonStyle(
+                            side=ft.BorderSide(1, BORDER),
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
+                        height=42,
+                        on_click=self._on_copy_report,
+                    ),
+                    ft.OutlinedButton(
+                        content=ft.Text("Export report (CSV)", color=TEXT_SECONDARY),
+                        style=ft.ButtonStyle(
+                            side=ft.BorderSide(1, BORDER),
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                        ),
+                        height=42,
+                        on_click=self._on_export_report,
+                    ),
+                    _make_button(
+                        "Return to Home",
+                        lambda _: self.push_route("/home"),
+                        bgcolor=SECONDARY,
+                    ),
+                ],
+                spacing=10,
+            )
+        )
+        self._content_area.controls = controls
+
+    # ------------------------------------------------------------------
+    # Report export
+    # ------------------------------------------------------------------
+
+    def _report_rows(self) -> list[dict]:
+        """Per-category deletion results as flat dict rows."""
+        return [
+            {
+                "Category": category,
+                "Deleted": success,
+                "Total": total,
+                "Status": "OK" if success == total else "INCOMPLETE",
+            }
+            for category, (success, total) in self._results.items()
+        ]
+
+    def _report_text(self) -> str:
+        return "\n".join(
+            f"{r['Status']:11} {r['Category']}: {r['Deleted']}/{r['Total']}"
+            for r in self._report_rows()
+        )
+
+    async def _on_copy_report(self, e):
+        try:
+            await e.page.clipboard.set(self._report_text())
+            show_toast(e.page, "Report copied to clipboard.", kind="success")
+        except Exception:
+            show_toast(e.page, "Couldn't access the clipboard.", kind="warning")
+
+    def _on_export_report(self, e):
+        try:
+            path = export_csv(
+                self._report_rows(),
+                ["Category", "Deleted", "Total", "Status"],
+                "decommission_report",
+            )
+            show_toast(
+                e.page, f"Report saved to {path}", kind="success", duration_ms=4000
+            )
+        except Exception as ex:
+            show_alert(e.page, "Export Failed", str(ex))
 
     def _category_position(self, category: str) -> int:
         """Return a category's position in DELETION_ORDER (or -1 if absent)."""

@@ -569,6 +569,8 @@ ENDPOINTS: dict[str, Endpoint] = {
                 "PUBLIC_API_CAMERA_READ_WRITE",
                 "PUBLIC_API_SENSORS_READ_WRITE",
                 "PUBLIC_API_ACCESS_READ_WRITE",
+                "PUBLIC_API_ACCESS_LOCKDOWN_MANAGEMENT_READ_WRITE",
+                "PUBLIC_API_ACCESS_DOOR_MANAGEMENT_READ_WRITE",
                 "PUBLIC_API_ALARMS_READ_WRITE",
                 "PUBLIC_API_CORE_READ_WRITE",
                 "PUBLIC_API_HELIX_READ_WRITE",
@@ -576,6 +578,7 @@ ENDPOINTS: dict[str, Endpoint] = {
                 "PUBLIC_API_INTERCOM_READ_WRITE",
                 "PUBLIC_API_CAMERA_AUDIO",
             ],
+            "accessible_access_sites": ["<site_id>", ...],
         },
         response={
             "apiKey": "<api_key>",
@@ -740,6 +743,36 @@ ENDPOINTS: dict[str, Endpoint] = {
             "userId": "<user_id>",
         },
     ),
+    "group.list": Endpoint(
+        method="POST",
+        subdomain="vauth",
+        path="security_entity_group/list",
+        payload={
+            "organizationId": "<org_id>",
+            "includeMembers": True,
+            "includeMemberCount": False,
+        },
+        response={
+            "securityEntityGroup": [
+                {
+                    "entityGroupId": "<group_id>",
+                    "name": "13 Admins",
+                    "verkadaManaged": False,
+                },
+            ],
+        },
+    ),
+    "group.delete": Endpoint(
+        method="POST",
+        subdomain="vauth",
+        path="security_entity_group/delete",
+        payload={
+            "securityEntityGroupIds": [
+                "<group_id>",
+            ]
+        },
+        response={},
+    ),
     # ── Cameras ──────────────────────────────────────────────────────
     "camera.create.name": Endpoint(
         method="POST",
@@ -841,6 +874,59 @@ ENDPOINTS: dict[str, Endpoint] = {
         path="camera/decommission",
         payload={"cameraId": "<camera_id>"},
         response={},
+    ),
+    "archive.list": Endpoint(
+        method="POST",
+        subdomain="vsubmit",
+        path="library/v2/archive/list/org",
+        payload={
+            "organizationId": "<org_id>",
+            "pageSize": 99,
+            "instantLastKey": None,
+            "legacyLastKey": None,
+            "first": True,
+            "sortAscending": False,
+            "sortBy": "creation_time",
+            "filters": {
+                "footageTimeMin": "<epoch time - now>",
+                "footageTimeMax": "<epoch time - SEARCH_DURATION days ago>",
+            },
+        },
+        response={
+            "instant": [
+                {
+                    "archiveId": "<archive_id>",
+                },
+            ],
+        },
+    ),
+    "archive.delete": Endpoint(
+        method="POST",
+        subdomain="vsubmit",
+        path="library/v2/archive/delete",
+        payload={"archiveIds": ["<archive_id>"]},
+        response={"<archive_id>": "success"},
+    ),
+    "incident.list": Endpoint(
+        method="POST",
+        subdomain="vinvestigate",
+        path="v2/incident/list",
+        payload={"organizationId": "<org_id>", "limit": 99},
+        response={
+            "incidents": [
+                {
+                    "incidentId": "<incident_id>",
+                    "name": "<incident_name>",
+                }
+            ],
+        },
+    ),
+    "incident.delete": Endpoint(
+        method="POST",
+        subdomain="vinvestigate",
+        path="v2/incident/delete",
+        payload={"incidentId": "<incident_id>"},
+        response={"success": True},
     ),
     "command_connector.create": Endpoint(
         method="POST",
@@ -1242,6 +1328,36 @@ ENDPOINTS: dict[str, Endpoint] = {
                 }
             ],
         },
+    ),
+    "access_user.list": Endpoint(
+        method="POST",
+        subdomain="vcerberus",
+        path="access/v2/user/users/search",
+        payload={
+            "organizationId": "<org_id>",
+            "status": ["access_granted"],
+            "status_filter_v2": True,
+            "paging": {"pageSize": 99, "sortOrder": ["first_name:asc", "email:asc"]},
+        },
+        response={
+            "nextPageToken": "WyJaYWNoYXJ5IiwgbnVsbCwgIjg3MDY1OTIxLWVjY2QtNDg5OS1iODg0LTE5ZGViMWUwYTJlNSJd",
+            "total": 1,
+            "users": [
+                {"fullName": "<full_name>", "userId": "<user_id>"},
+            ],
+        },
+    ),
+    "access_user.delete": Endpoint(
+        method="POST",
+        subdomain=api_region,
+        path="users/delete",
+        payload={
+            "organizationId": "<org_id>",
+            "userIds": [
+                "<user_id>",
+            ],
+        },
+        response={},
     ),
     "access_group.create": Endpoint(
         method="POST",

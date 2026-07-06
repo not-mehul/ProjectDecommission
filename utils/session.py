@@ -15,12 +15,17 @@ import time
 
 from apis.external_api import VerkadaExternalAPIClient
 from apis.internal_api import VerkadaInternalAPIClient
-from constants import SESSION_TIMEOUT_MINUTES
+from constants import (
+    SESSION_EXTENSION_MINUTES,
+    SESSION_MAX_EXTENSIONS,
+    SESSION_TIMEOUT_MINUTES,
+)
 
 _internal_client: VerkadaInternalAPIClient | None = None
 _external_client: VerkadaExternalAPIClient | None = None
 _session_start: float | None = None
 _warning_shown: bool = False
+_extensions_used: int = 0
 
 
 def set_internal_client(client: VerkadaInternalAPIClient) -> None:
@@ -82,6 +87,28 @@ def is_session_expired() -> bool:
     return get_session_remaining() <= 0
 
 
+def can_extend() -> bool:
+    """True if the session can still be extended (under the per-session cap)."""
+    return session_active() and _extensions_used < SESSION_MAX_EXTENSIONS
+
+
+def extend_session() -> bool:
+    """Grant one bounded extension by pushing the start time forward.
+
+    Adds SESSION_EXTENSION_MINUTES to the remaining budget, up to
+    SESSION_MAX_EXTENSIONS times. Returns True if an extension was granted.
+    The absolute-limit model is preserved: extensions are finite, not an
+    unlimited reset. Re-arms the pre-expiry warning for the new window.
+    """
+    global _session_start, _extensions_used, _warning_shown
+    if not can_extend() or _session_start is None:
+        return False
+    _session_start += SESSION_EXTENSION_MINUTES * 60
+    _extensions_used += 1
+    _warning_shown = False
+    return True
+
+
 def mark_warning_shown() -> None:
     """Record that the pre-expiry warning has been shown for this session."""
     global _warning_shown
@@ -96,7 +123,9 @@ def was_warning_shown() -> bool:
 def clear_session():
     """Drop the cached clients and start time. Called on logout/timeout."""
     global _internal_client, _external_client, _session_start, _warning_shown
+    global _extensions_used
     _internal_client = None
     _external_client = None
     _session_start = None
     _warning_shown = False
+    _extensions_used = 0

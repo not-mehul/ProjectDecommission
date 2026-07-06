@@ -9,8 +9,13 @@ and mounts the LoginView. Each view receives `push_route` and
 import asyncio
 import webbrowser
 
+import sys
+
 import flet as ft
 
+import constants
+import theme
+from components import CommandPalette
 from constants import (
     APP_VERSION,
     BG,
@@ -19,30 +24,38 @@ from constants import (
     MIN_WIDTH,
     WARNING,
 )
+from pages import (
+    app_shell,
+    commission_view,
+    decommission_view,
+    home_view,
+    login_view,
+    two_factor_view,
+    users_view,
+)
 from pages.commission_view import CommissionView
 from pages.decommission_view import DecommissionView
 from pages.home_view import HomeView
 from pages.login_view import LoginView
 from pages.two_factor_view import TwoFactorView
 from pages.users_view import UsersView
+from utils import prefs, ui_utils
 from utils.logger import get_log_path, log_api_call
 from utils.session import clear_session, is_session_expired, session_active
 from utils.version_check import check_for_update
 
-# Maps a route string to the View class that renders it. Adding a new
-# screen is a matter of writing a `View` subclass and adding one entry.
-ROUTE_MAP = {
-    "/login": LoginView,
-    "/2fa": TwoFactorView,
-    "/home": HomeView,
-    "/commission": CommissionView,
-    "/users": UsersView,
-    "/decommission": DecommissionView,
-}
-
-# Routes reachable without an active session. Navigating to anything else
-# after the session has expired bounces the user back to login.
-_PUBLIC_ROUTES = {"/login", "/2fa"}
+# Modules that imported flat color names by value and therefore need their
+# globals re-pointed at the active palette on a theme switch.
+_THEMED_MODULES = [
+    constants,
+    ui_utils,
+    login_view,
+    two_factor_view,
+    home_view,
+    commission_view,
+    decommission_view,
+    users_view,
+]
 
 # How often the background watchdog re-checks the session clock. Enforcement
 # is independent of any view's own timer, so the timeout still fires while
@@ -56,63 +69,112 @@ async def main(page: ft.Page):
     print(f"Logs → {get_log_path()}")
 
     page.title = f"vCommander {BUILD_VARIANT_LABEL}v{APP_VERSION}"
-    page.bgcolor = BG
-    page.theme_mode = ft.ThemeMode.DARK
     page.window.min_width = MIN_WIDTH
     page.window.min_height = MIN_HEIGHT
     page.window.width = MIN_WIDTH
     page.window.height = MIN_HEIGHT
     page.padding = 0
 
-    history: list[str] = []
+    # Authenticated tool routes are shown inside one persistent AppShell;
+    # public routes replace the whole view.
+    TOOL_ROUTES = {
+        "/home": HomeView,
+        "/commission": CommissionView,
+        "/users": UsersView,
+        "/decommission": DecommissionView,
+    }
+    PUBLIC = {"/login": LoginView, "/2fa": TwoFactorView}
 
-    def push_route(route: str):
-        """Navigate forward by replacing the current view with `route`.
+    state = {"shell": None}
+    current = {"route": "/login"}
 
-        Lazily enforces the session timeout: if the clock has expired,
-        navigation into any authenticated screen is redirected to login.
-        This catches the case where the window was backgrounded past the
-        limit and the user returns and clicks something.
+    def _set_palette(mode: str):
+        """Switch the active palette and re-point every themed module at it."""
+        theme.set_theme_mode(mode)
+        theme.apply_to([*_THEMED_MODULES, sys.modules[__name__]])
+        page.theme_mode = (
+            ft.ThemeMode.DARK if mode == "dark" else ft.ThemeMode.LIGHT
+        )
+        page.bgcolor = theme.BG
+
+    def make_tool(route):
+        return TOOL_ROUTES[route](push_route=navigate, pop_route=back)
+
+    def navigate(route: str):
+        """Single navigation entry point.
+
+        Public routes (login/2FA) replace the whole view. Tool routes are
+        shown inside the one persistent AppShell — only the content area
+        swaps, so the sidebar stays constant and there's no page transition.
         """
-        if route not in _PUBLIC_ROUTES and session_active() and is_session_expired():
+        if route in PUBLIC:
+            # Leaving the app drops the shell (will_unmount cancels its timer).
+            state["shell"] = None
+            page.views.clear()
+            page.views.append(PUBLIC[route](push_route=navigate, pop_route=back))
+            current["route"] = route
+            page.update()
+            return
+
+        # Authenticated tool route — enforce the session clock lazily.
+        if session_active() and is_session_expired():
             clear_session()
-            route = "/login"
-        history.append(route)
-        page.views.clear()
-        view_class = ROUTE_MAP[route]
-        view = view_class(push_route=push_route, pop_route=pop_route)
-        page.views.append(view)
-        page.update()
+            navigate("/login")
+            return
+
+        shell = state["shell"]
+        if shell is None or not page.views or page.views[-1] is not shell:
+            shell = app_shell.AppShell(navigate=navigate, tool_factory=make_tool)
+            state["shell"] = shell
+            page.views.clear()
+            page.views.append(shell)
+            page.update()  # mounts shell; did_mount starts the session timer
+        shell.show(route)
+        current["route"] = route
+
+    def back():
+        """Esc / back without a growing history stack."""
+        route = current["route"]
+        if route == "/2fa":
+            navigate("/login")
+        elif route in TOOL_ROUTES and route != "/home":
+            navigate("/home")
+        # On /home or /login, back is a no-op.
+
+    def toggle_theme():
+        new_mode = "light" if theme.palette.mode == "dark" else "dark"
+        _set_palette(new_mode)
+        prefs.set_theme_pref(new_mode)
+        # Rebuild the current screen with the new palette (colors are captured
+        # at build time). Tool routes need a fresh shell.
+        route = current["route"]
+        if route in TOOL_ROUTES:
+            state["shell"] = None
+        navigate(route)
+
+    app_shell.set_theme_toggle(toggle_theme)
+
+    # Startup theme: saved preference, else follow the OS brightness.
+    startup_mode = prefs.get_theme_pref()
+    if startup_mode is None:
+        startup_mode = (
+            "light" if page.platform_brightness == ft.Brightness.LIGHT else "dark"
+        )
+    _set_palette(startup_mode)
 
     async def session_watchdog():
-        """App-level timeout enforcement, independent of the active view.
-
-        HomeView's own timer only runs on the home screen; this loop runs
-        for the whole app lifetime so the session still expires while the
-        user is deep inside a tool or the window is in the background.
-        """
+        """App-level timeout enforcement, independent of the active screen."""
         try:
             while True:
                 await asyncio.sleep(_SESSION_WATCHDOG_INTERVAL)
                 if session_active() and is_session_expired():
                     clear_session()
-                    if not history or history[-1] not in _PUBLIC_ROUTES:
-                        push_route("/login")
+                    if current["route"] not in PUBLIC:
+                        navigate("/login")
         except asyncio.CancelledError:
             pass
 
-    def pop_route():
-        """Navigate back to the previous view; no-op at the bottom of the stack."""
-        if len(history) > 1:
-            history.pop()
-            route = history[-1]
-            page.views.clear()
-            view_class = ROUTE_MAP[route]
-            view = view_class(push_route=push_route, pop_route=pop_route)
-            page.views.append(view)
-            page.update()
-
-    push_route("/login")
+    navigate("/login")
 
     def show_update_banner(latest: str, url: str):
         def dismiss(_):
@@ -147,31 +209,66 @@ async def main(page: ft.Page):
         latest, url = result
         show_update_banner(latest, url)
 
+    def open_command_palette():
+        """Build and show the Cmd/Ctrl-K palette (only inside the app)."""
+
+        def logout():
+            clear_session()
+            navigate("/login")
+
+        commands = [
+            ("Go to Home", ft.Icons.GRID_VIEW_ROUNDED, lambda: navigate("/home")),
+            (
+                "Go to Commission",
+                ft.Icons.BUSINESS_ROUNDED,
+                lambda: navigate("/commission"),
+            ),
+            (
+                "Go to User Management",
+                ft.Icons.PEOPLE_ALT_ROUNDED,
+                lambda: navigate("/users"),
+            ),
+            (
+                "Go to Decommission",
+                ft.Icons.DELETE_SWEEP_ROUNDED,
+                lambda: navigate("/decommission"),
+            ),
+            (
+                "Toggle light / dark theme",
+                ft.Icons.BRIGHTNESS_6_ROUNDED,
+                toggle_theme,
+            ),
+            ("Log out", ft.Icons.LOGOUT_ROUNDED, logout),
+        ]
+        CommandPalette(page, commands).open()
+
+    def _in_app() -> bool:
+        """True only on an authenticated tool route (not login/2FA)."""
+        return current["route"] in TOOL_ROUTES
+
     def on_key(e: ft.KeyboardEvent):
         """Global shortcuts.
 
-        Esc          → back (pop_route), no-op on /login / /2fa.
-        Cmd/Ctrl-K   → jump to Home when an authenticated session is active.
-        Cmd/Ctrl-,   → trigger logout (and bounce to /login).
+        Esc          → back (no-op on /home and the public screens).
+        Cmd/Ctrl-K   → command palette (only inside the app; never on 2FA/login).
+        Cmd/Ctrl-,   → log out (only inside the app).
 
-        Per-screen TextField submissions stay handled by `on_submit` on
-        the form's last field, so Enter on a focused field still fires
-        the primary action without going through this dispatcher.
+        Per-screen TextField submissions stay handled by `on_submit` on the
+        form's last field, so Enter on a focused field still fires the primary
+        action without going through this dispatcher.
         """
         ctrl_or_meta = e.ctrl or e.meta
         if e.key == "Escape":
-            current = history[-1] if history else None
-            if current not in _PUBLIC_ROUTES:
-                pop_route()
+            back()
             return
         if ctrl_or_meta and e.key.upper() == "K":
-            if session_active() and (not history or history[-1] != "/home"):
-                push_route("/home")
+            if _in_app():
+                open_command_palette()
             return
         if ctrl_or_meta and e.key == ",":
-            if session_active():
+            if _in_app():
                 clear_session()
-                push_route("/login")
+                navigate("/login")
             return
 
     page.on_keyboard_event = on_key
@@ -180,4 +277,4 @@ async def main(page: ft.Page):
     asyncio.create_task(session_watchdog())
 
 
-ft.app(target=main)
+ft.run(main)

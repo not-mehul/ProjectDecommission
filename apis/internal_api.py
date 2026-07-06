@@ -22,6 +22,7 @@ from constants import (
     AS_INSTRUCTOR_KEYCODE_NAME,
     DEFAULT_TIMEOUT,
     DEV_SKIP_LOGIN,
+    SEARCH_DURATION,
 )
 from utils.logger import log_api_call
 
@@ -1245,8 +1246,9 @@ class VerkadaInternalAPIClient:
         return self._fetch_list(
             "access_controller.list",
             response_key="accessControllers",
-            filter_func=lambda x: x.get("vconductorModelId")
-            != self._ACCESS_STATION_PRO_MODEL,
+            filter_func=lambda x: (
+                x.get("vconductorModelId") != self._ACCESS_STATION_PRO_MODEL
+            ),
             mapping_func=lambda x: {
                 "id": x["accessControllerId"],
                 "name": x["name"],
@@ -1259,8 +1261,9 @@ class VerkadaInternalAPIClient:
         return self._fetch_list(
             "face_station_pro.list",
             response_key="accessControllers",
-            filter_func=lambda x: x.get("vconductorModelId")
-            == self._ACCESS_STATION_PRO_MODEL,
+            filter_func=lambda x: (
+                x.get("vconductorModelId") == self._ACCESS_STATION_PRO_MODEL
+            ),
             mapping_func=lambda x: {
                 "id": x["accessControllerId"],
                 "name": x.get("name"),
@@ -1445,9 +1448,7 @@ class VerkadaInternalAPIClient:
         get_schedule's `delete_objects`.
         """
         if not delete_objects:
-            raise ValueError(
-                "delete_schedule requires at least one schedule object"
-            )
+            raise ValueError("delete_schedule requires at least one schedule object")
         payload = [{**obj, "deleted": True} for obj in delete_objects]
         self._delete(
             "schedule.delete",
@@ -1544,6 +1545,106 @@ class VerkadaInternalAPIClient:
                 f"Failed to add user '{user_id}' to access group '{group_id}'"
             ),
             log_request=f'{{"userId": "{user_id}", "groupId": "{group_id}"}}',
+        )
+
+    # ------------------------------------------------------------------
+    # Security entity groups, access users, and footage archives
+    # ------------------------------------------------------------------
+
+    def get_group(self) -> list[dict[str, Any]]:
+        """List security entity groups the user can delete.
+
+        Verkada-managed groups are system defaults, so only groups with
+        `verkadaManaged` falsy are surfaced (the rest are ignored).
+        """
+        return self._fetch_list(
+            "group.list",
+            response_key="securityEntityGroup",
+            payload={
+                "organizationId": self.org_id,
+                "includeMembers": True,
+                "includeMemberCount": False,
+            },
+            filter_func=lambda g: not g.get("verkadaManaged", False),
+            mapping_func=lambda g: {
+                "id": g["entityGroupId"],
+                "name": g.get("name"),
+            },
+        )
+
+    def delete_group(self, group_id: str) -> None:
+        """Delete a single security entity group (endpoint accepts a list)."""
+        self._delete(
+            "group.delete",
+            json={"securityEntityGroupIds": [group_id]},
+            oid=group_id,
+        )
+
+    def get_access_user(self) -> list[dict[str, Any]]:
+        """List access-control users with granted access.
+
+        Single page (pageSize 99); orgs beyond one page would need the
+        `nextPageToken` followed — not needed for lab-scale orgs today.
+        """
+        return self._fetch_list(
+            "access_user.list",
+            response_key="users",
+            payload={
+                "organizationId": self.org_id,
+                "status": ["access_granted"],
+                "status_filter_v2": True,
+                "paging": {
+                    "pageSize": 99,
+                    "sortOrder": ["first_name:asc", "email:asc"],
+                },
+            },
+            filter_func=lambda u: u.get("userId") != self.user_id,
+            mapping_func=lambda u: {"id": u["userId"], "name": u.get("fullName")},
+        )
+
+    def delete_access_user(self, user_id: str) -> None:
+        """Delete a single access-control user (endpoint accepts a list)."""
+        self._delete(
+            "access_user.delete",
+            json={"organizationId": self.org_id, "userIds": [user_id]},
+            oid=user_id,
+        )
+
+    def get_archive(self) -> list[dict[str, Any]]:
+        """List footage archives within the SEARCH_DURATION-day look-back.
+
+        The archive.list endpoint filters by footage time. Per the endpoint
+        contract, footageTimeMin is 'now' and footageTimeMax is
+        SEARCH_DURATION days ago (both epoch seconds). Single page
+        (pageSize 99).
+        """
+        now = int(time.time())
+        window_start = now - SEARCH_DURATION * 86400
+        return self._fetch_list(
+            "archive.list",
+            response_key="instant",
+            payload={
+                "organizationId": self.org_id,
+                "pageSize": 99,
+                "instantLastKey": None,
+                "legacyLastKey": None,
+                "first": True,
+                "sortAscending": False,
+                "sortBy": "creation_time",
+                "filters": {
+                    "footageTimeMin": now,
+                    "footageTimeMax": window_start,
+                },
+            },
+            mapping_func=lambda a: {"id": a["archiveId"], "name": a.get("archiveId")},
+        )
+
+    def delete_archive(self, archive_id: str) -> None:
+        """Delete a single footage archive (endpoint accepts a list)."""
+        self._delete(
+            "archive.delete",
+            json={"archiveIds": [archive_id]},
+            oid=archive_id,
         )
 
     def create_building(
