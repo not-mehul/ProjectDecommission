@@ -285,24 +285,16 @@ class DecommissionView(ToolView):
             client = get_internal_client()
             loop = asyncio.get_running_loop()
 
-            # Generate a short-lived API key and initialize the external client.
-            # The external client constructor handles the token exchange itself.
-            api_key = await loop.run_in_executor(
-                _executor, client.create_external_api_key
-            )
-            ext_client = await loop.run_in_executor(
-                _executor,
-                VerkadaExternalAPIClient,
-                api_key,
-                client.org_short_name,
-            )
-            set_external_client(ext_client)
-
             # Pre-scan permission elevation. Both calls grant the running
             # user the ability to see and delete site-scoped resources that
             # the standard org-admin role might not surface. Without these,
             # access controllers, alarm sites, and similar can be silently
             # missing from the scan results.
+            #
+            # These run BEFORE the API key is created: the key is scoped to
+            # the sites returned by get_site() at creation time, so the user
+            # must be able to see every site first — otherwise the key (and
+            # its access-API token) is scoped to an incomplete set of sites.
             #
             # Both elevations are intentionally NOT reverted afterwards —
             # the user expects to remain elevated for any follow-up admin
@@ -319,6 +311,19 @@ class DecommissionView(ToolView):
                 "Granting Access System Admin",
                 client.enable_access_admin,
             )
+
+            # Generate a short-lived API key and initialize the external client.
+            # The external client constructor handles the token exchange itself.
+            api_key = await loop.run_in_executor(
+                _executor, client.create_external_api_key
+            )
+            ext_client = await loop.run_in_executor(
+                _executor,
+                VerkadaExternalAPIClient,
+                api_key,
+                client.org_short_name,
+            )
+            set_external_client(ext_client)
 
             # Serials that should be filtered out of the Cameras list:
             # Intercoms and Access Station Pros are both surfaced by the
