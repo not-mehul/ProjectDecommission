@@ -541,7 +541,7 @@ class VerkadaExternalAPIClient:
         )
 
     # ------------------------------------------------------------------
-    # Access levels & access groups (public API)
+    # Access groups (public API)
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -561,43 +561,6 @@ class VerkadaExternalAPIClient:
             if key != "__status_code__" and isinstance(value, list):
                 return value
         return []
-
-    def get_access_levels(self) -> list[dict[str, Any]]:
-        """Returns access levels as {id, name} for the decommission scan."""
-        path = "access/v1/door/access_level"
-        url = f"https://{self.region}.verkada.com/{path}"
-        data = self._request(
-            "GET", url, error_context="Failed to fetch access levels"
-        )
-        results = [
-            {"id": x.get("access_level_id"), "name": x.get("name")}
-            for x in self._extract_list(data, "access_levels")
-        ]
-        log_api_call(
-            "GET",
-            f"{self.region}.verkada.com/{path}",
-            "{}",
-            self._status(data),
-            f'{{"count": {len(results)}}}',
-        )
-        return results
-
-    def delete_access_level(self, access_level_id: str) -> None:
-        """Deletes an access level (id in the URL path)."""
-        path = f"access/v1/door/access_level/{access_level_id}"
-        url = f"https://{self.region}.verkada.com/{path}"
-        data = self._request(
-            "DELETE",
-            url,
-            error_context=f"Failed to delete access level {access_level_id}",
-        )
-        log_api_call(
-            "DELETE",
-            f"{self.region}.verkada.com/{path}",
-            f'{{"access_level_id": "{access_level_id}"}}',
-            self._status(data),
-            "{}",
-        )
 
     def get_access_groups(self) -> list[dict[str, Any]]:
         """Returns access groups as {id, name} for the decommission scan."""

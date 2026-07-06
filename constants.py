@@ -395,6 +395,7 @@ _INTERNAL_GETTERS = {
     "Buildings": "get_building",
     "Visitor Access": "get_visitor_access",
     "Schedules": "get_schedule",
+    "Access Levels": "get_access_level",
     "Scenarios": "get_scenario",
     # Sites (camera groups)
     "Sites": "get_site",
@@ -439,6 +440,7 @@ _INTERNAL_DELETERS = {
     "Buildings": "delete_building",
     "Visitor Access": "delete_visitor_access",
     "Schedules": "delete_schedule",
+    "Access Levels": "delete_access_level",
     "Scenarios": "delete_scenario",
     # Sites (camera groups) — _delete_one falls back to rename_site
     # ("<name>-<mm/dd/yy>") when the delete is rejected.
@@ -461,27 +463,10 @@ _INTERNAL_DELETERS = {
 _EXTERNAL_GETTERS = {
     "Cameras": "get_cameras",
     "Guest Sites": "get_guest_sites",
-    "Access Levels": "get_access_levels",
     "Access Groups": "get_access_groups",
 }
 
 _EXTERNAL_DELETERS = {
     "Command Users": "delete_access_user",
-    "Access Levels": "delete_access_level",
     "Access Groups": "delete_access_group",
-}
-
-# Internal-API fallbacks for categories normally scanned/deleted through
-# the public API. When the public-API getter fails (e.g. the temporary key
-# lacks access scope), the decommission scan retries the fetch through the
-# internal client, and any items found are then deleted through the internal
-# client too. Access levels are backed by schedules, so the public API's
-# access_level_id equals the internal scheduleId — the same UUID either
-# deleter accepts — which keeps the get/delete pair consistent.
-_INTERNAL_FALLBACK_GETTERS = {
-    "Access Levels": "get_access_level",
-}
-
-_INTERNAL_FALLBACK_DELETERS = {
-    "Access Levels": "delete_access_level",
 }

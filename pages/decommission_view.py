@@ -19,8 +19,6 @@ from constants import (
     _EXTERNAL_DELETERS,
     _EXTERNAL_GETTERS,
     _INTERNAL_DELETERS,
-    _INTERNAL_FALLBACK_DELETERS,
-    _INTERNAL_FALLBACK_GETTERS,
     _INTERNAL_GETTERS,
     ASSET_CATEGORIES,
     BORDER,
@@ -282,24 +280,29 @@ class DecommissionView(ToolView):
         # Clear any stale data from a previous scan so a partial failure never
         # leaves the app in a mixed state.
         self._assets = {}
-        # Categories whose scan fell back from the public API to the internal
-        # API — their deletes must go through the internal client too.
-        self._fallback_categories: set[str] = set()
 
         try:
             client = get_internal_client()
             loop = asyncio.get_running_loop()
+
+            # Generate a short-lived API key and initialize the external client.
+            # The external client constructor handles the token exchange itself.
+            api_key = await loop.run_in_executor(
+                _executor, client.create_external_api_key
+            )
+            ext_client = await loop.run_in_executor(
+                _executor,
+                VerkadaExternalAPIClient,
+                api_key,
+                client.org_short_name,
+            )
+            set_external_client(ext_client)
 
             # Pre-scan permission elevation. Both calls grant the running
             # user the ability to see and delete site-scoped resources that
             # the standard org-admin role might not surface. Without these,
             # access controllers, alarm sites, and similar can be silently
             # missing from the scan results.
-            #
-            # These run BEFORE the API key is created: the key is scoped to
-            # the sites returned by get_site() at creation time, so the user
-            # must be able to see every site first — otherwise the key (and
-            # its access-API token) is scoped to an incomplete set of sites.
             #
             # Both elevations are intentionally NOT reverted afterwards —
             # the user expects to remain elevated for any follow-up admin
@@ -316,19 +319,6 @@ class DecommissionView(ToolView):
                 "Granting Access System Admin",
                 client.enable_access_admin,
             )
-
-            # Generate a short-lived API key and initialize the external client.
-            # The external client constructor handles the token exchange itself.
-            api_key = await loop.run_in_executor(
-                _executor, client.create_external_api_key
-            )
-            ext_client = await loop.run_in_executor(
-                _executor,
-                VerkadaExternalAPIClient,
-                api_key,
-                client.org_short_name,
-            )
-            set_external_client(ext_client)
 
             # Serials that should be filtered out of the Cameras list:
             # Intercoms and Access Station Pros are both surfaced by the
@@ -440,25 +430,7 @@ class DecommissionView(ToolView):
             if not method_name:
                 return []
             getter = getattr(ext_client, method_name)
-            try:
-                items = await loop.run_in_executor(_executor, getter)
-            except Exception as ext_ex:
-                # Some categories (e.g. Access Levels) are also reachable
-                # through the internal API. If the public-API fetch fails,
-                # fall back to the internal endpoint so the scan still
-                # surfaces them; the delete path routes through the internal
-                # client for any category that fell back (see _delete_one).
-                fallback = _INTERNAL_FALLBACK_GETTERS.get(category)
-                if not fallback:
-                    raise
-                log_system(
-                    f"{category}: external scan failed ({ext_ex}); "
-                    "falling back to internal API"
-                )
-                int_getter = getattr(client, fallback)
-                items = await loop.run_in_executor(_executor, int_getter)
-                self._fallback_categories.add(category)
-                return items
+            items = await loop.run_in_executor(_executor, getter)
 
             # The external Cameras endpoint also returns intercoms and
             # Access Station Pros; dedup so they're only deleted once.
@@ -1304,18 +1276,7 @@ class DecommissionView(ToolView):
         log_system(f"{category}: deleting {descriptor}")
 
         try:
-            fallback_deleter = (
-                _INTERNAL_FALLBACK_DELETERS.get(category)
-                if category in self._fallback_categories
-                else None
-            )
-            if fallback_deleter is not None:
-                # This category's scan fell back to the internal API, so its
-                # delete must go through the internal client too. The id is
-                # the same UUID the public-API deleter would have used.
-                deleter = getattr(int_client, fallback_deleter)
-                await loop.run_in_executor(_executor, deleter, item_id)
-            elif category in _INTERNAL_DELETERS:
+            if category in _INTERNAL_DELETERS:
                 # Most deleters take a single id. Two need extra data, so
                 # special-case them to keep the rest of the client API uniform:
                 #   - delete_alarm_site takes (alarm_site_id, site_id);
