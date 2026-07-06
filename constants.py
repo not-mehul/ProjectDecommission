@@ -222,8 +222,12 @@ ASSET_CATEGORIES = [
     "Sensors",
     "Cameras",
     "Command Connectors",
-    # Footage archives (look-back window = constants.SEARCH_DURATION days)
+    # Footage / investigations (Archives look-back window =
+    # constants.SEARCH_DURATION days). Incidents reference footage, so they
+    # precede Archives; Alerts (alert rules) are independent org-level rules.
+    "Incidents",
     "Archives",
+    "Alerts",
     "Guest Sites",
     "Mailroom Sites",
     # Access Control
@@ -323,8 +327,12 @@ DELETION_ORDER = [
     "Sensors",
     "Cameras",
     "Command Connectors",
-    # Footage archives — after Command Connectors, before Guest Sites.
+    # Footage / investigations — after Command Connectors, before Guest
+    # Sites. Incidents reference footage, so delete them before Archives;
+    # Alerts (alert rules) are independent.
+    "Incidents",
     "Archives",
+    "Alerts",
     "Guest Sites",
     "Mailroom Sites",
     # Rest of Access Control
@@ -375,7 +383,9 @@ _INTERNAL_GETTERS = {
     "Desk Stations": "get_desk_station",
     "Sensors": "get_sensor",
     "Command Connectors": "get_connector",
+    "Incidents": "get_incident",
     "Archives": "get_archive",
+    "Alerts": "get_alert",
     "Mailroom Sites": "get_mailroom_site",
     # Access Control
     "Doors": "get_door",
@@ -414,7 +424,9 @@ _INTERNAL_DELETERS = {
     "Sensors": "delete_sensor",
     "Cameras": "delete_camera",
     "Command Connectors": "delete_connector",
+    "Incidents": "delete_incident",
     "Archives": "delete_archive",
+    "Alerts": "delete_alert",
     "Guest Sites": "delete_guest_site",
     "Mailroom Sites": "delete_mailroom_site",
     # Security entity groups

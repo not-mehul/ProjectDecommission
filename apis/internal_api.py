@@ -1553,7 +1553,8 @@ class VerkadaInternalAPIClient:
         )
 
     # ------------------------------------------------------------------
-    # Security entity groups, access users, and footage archives
+    # Security entity groups, access users, footage archives,
+    # investigation incidents, and alert rules
     # ------------------------------------------------------------------
 
     def get_group(self) -> list[dict[str, Any]]:
@@ -1650,6 +1651,54 @@ class VerkadaInternalAPIClient:
             "archive.delete",
             json={"archiveIds": [archive_id]},
             oid=archive_id,
+        )
+
+    def get_incident(self) -> list[dict[str, Any]]:
+        """List investigation incidents in the org (single page, limit 99)."""
+        return self._fetch_list(
+            "incident.list",
+            response_key="incidents",
+            payload={"organizationId": self.org_id, "limit": 99},
+            mapping_func=lambda x: {
+                "id": x["incidentId"],
+                "name": x.get("name") or x["incidentId"],
+            },
+        )
+
+    def delete_incident(self, incident_id: str) -> None:
+        """Delete a single investigation incident."""
+        self._delete(
+            "incident.delete",
+            json={"incidentId": incident_id},
+            oid=incident_id,
+        )
+
+    def get_alert(self) -> list[dict[str, Any]]:
+        """List alert rules configured in the org.
+
+        The alert_rules/get endpoint returns a top-level JSON list, which
+        _request wraps under the "items" key.
+        """
+        return self._fetch_list(
+            "alert.list",
+            response_key="items",
+            payload={
+                "organizationId": self.org_id,
+                "showSharedAlerts": True,
+                "filters": {},
+            },
+            mapping_func=lambda x: {
+                "id": x["alertRuleId"],
+                "name": x.get("name") or x["alertRuleId"],
+            },
+        )
+
+    def delete_alert(self, alert_rule_id: str) -> None:
+        """Delete a single alert rule."""
+        self._delete(
+            "alert.delete",
+            json={"organizationId": self.org_id, "filterId": alert_rule_id},
+            oid=alert_rule_id,
         )
 
     def create_building(
