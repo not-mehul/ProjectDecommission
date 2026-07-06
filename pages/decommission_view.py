@@ -18,12 +18,10 @@ from apis.external_api import VerkadaExternalAPIClient
 from constants import (
     _EXTERNAL_DELETERS,
     _EXTERNAL_GETTERS,
-    _INTERNAL_BULK_DELETERS,
     _INTERNAL_DELETERS,
     _INTERNAL_GETTERS,
     ASSET_CATEGORIES,
     BORDER,
-    BULK_DELETE_CHUNK,
     CARD_PADDING,
     CARD_SHADOW,
     CATEGORY_GROUPS,
@@ -1166,26 +1164,15 @@ class DecommissionView(ToolView):
             log_system(f"--- {category}: deleting {len(items)} item(s) ---")
 
             success = 0
-            if category in _INTERNAL_BULK_DELETERS:
-                # The endpoint deletes many ids per request, so batch the
-                # whole category into chunked bulk calls instead of one
-                # request per item.
-                success, bulk_cancelled = await self._delete_bulk(
-                    page, loop, int_client, category, items
-                )
-                if bulk_cancelled:
+            for item in items:
+                if self._cancel_token and self._cancel_token.is_cancelled:
                     cancelled = True
                     self._cancelled_at = category
-            else:
-                for item in items:
-                    if self._cancel_token and self._cancel_token.is_cancelled:
-                        cancelled = True
-                        self._cancelled_at = category
-                        break
-                    if await self._delete_one(
-                        page, loop, int_client, ext_client, category, item
-                    ):
-                        success += 1
+                    break
+                if await self._delete_one(
+                    page, loop, int_client, ext_client, category, item
+                ):
+                    success += 1
 
             row = self._category_rows.get(category)
             if row is not None:
@@ -1369,92 +1356,6 @@ class DecommissionView(ToolView):
                 f"{category}: FAILED to delete {descriptor} — {ex}", level="ERROR"
             )
             return False
-
-    async def _delete_bulk(
-        self,
-        page,
-        loop: asyncio.AbstractEventLoop,
-        int_client,
-        category: str,
-        items: list[dict],
-    ) -> tuple[int, bool]:
-        """Delete a bulk-capable category with chunked multi-id requests.
-
-        Mirrors _delete_one's per-item detail rows so the expandable view
-        still lists every asset, but issues one request per chunk of items
-        instead of one per item. The endpoint returns no per-id result, so
-        a failed chunk marks every item in that chunk as failed. Returns
-        (success_count, cancelled).
-        """
-        deleter = getattr(int_client, _INTERNAL_BULK_DELETERS[category])
-        cat_row = self._category_rows.get(category)
-        items_col = cat_row["items"] if cat_row else None
-        success = 0
-        cancelled = False
-
-        for start in range(0, len(items), BULK_DELETE_CHUNK):
-            if self._cancel_token and self._cancel_token.is_cancelled:
-                cancelled = True
-                break
-            chunk = items[start : start + BULK_DELETE_CHUNK]
-            ids = [item.get("id") or "unknown" for item in chunk]
-            descriptors = ", ".join(_item_descriptor(item) for item in chunk)
-
-            # One "Deleting..." row per item so the detail view still lists
-            # every asset; they all resolve together when the chunk returns.
-            rows: list[tuple[ft.Row, ft.Text, str]] = []
-            for item in chunk:
-                item_name = item.get("name") or item.get("id") or "unknown"
-                serial = _item_serial(item)
-                row_label = (
-                    item_name if not serial else f"{item_name}  ·  SN {serial}"
-                )
-                icon = ft.ProgressRing(
-                    width=14, height=14, stroke_width=2, color=TEXT_SECONDARY
-                )
-                text = ft.Text(
-                    f"  Deleting {row_label}...", color=TEXT_SECONDARY, size=12
-                )
-                row = ft.Row([icon, text], spacing=8)
-                if items_col is not None:
-                    items_col.controls.append(row)
-                rows.append((row, text, row_label))
-            page.update()
-            await asyncio.sleep(0)
-            log_system(f"{category}: bulk deleting {len(chunk)} item(s)")
-
-            try:
-                await loop.run_in_executor(_executor, deleter, ids)
-                for row, text, row_label in rows:
-                    row.controls[0] = ft.Icon(
-                        ft.Icons.CHECK_CIRCLE, color=SECONDARY, size=16
-                    )
-                    text.value = f"  Deleted {row_label}"
-                    text.color = SECONDARY
-                success += len(chunk)
-                if cat_row is not None:
-                    cat_row["success"] += len(chunk)
-                    cat_row["counter"].value = (
-                        f"{cat_row['success']} / {cat_row['total']}"
-                    )
-                log_system(f"{category}: bulk deleted {len(chunk)} item(s)")
-            except Exception as ex:
-                for row, text, row_label in rows:
-                    row.controls[0] = ft.Icon(
-                        ft.Icons.ERROR, color=ERROR, size=16
-                    )
-                    text.value = f"  Failed: {row_label} — {ex}"
-                    text.color = ERROR
-                if cat_row is not None:
-                    cat_row["failed"] += len(chunk)
-                log_system(
-                    f"{category}: FAILED to bulk delete {len(chunk)} "
-                    f"item(s) ({descriptors}) — {ex}",
-                    level="ERROR",
-                )
-            page.update()
-
-        return success, cancelled
 
     async def _rename_site_fallback(
         self,
