@@ -569,6 +569,8 @@ ENDPOINTS: dict[str, Endpoint] = {
                 "PUBLIC_API_CAMERA_READ_WRITE",
                 "PUBLIC_API_SENSORS_READ_WRITE",
                 "PUBLIC_API_ACCESS_READ_WRITE",
+                "PUBLIC_API_ACCESS_LOCKDOWN_MANAGEMENT_READ_WRITE",
+                "PUBLIC_API_ACCESS_DOOR_MANAGEMENT_READ_WRITE",
                 "PUBLIC_API_ALARMS_READ_WRITE",
                 "PUBLIC_API_CORE_READ_WRITE",
                 "PUBLIC_API_HELIX_READ_WRITE",
@@ -576,6 +578,7 @@ ENDPOINTS: dict[str, Endpoint] = {
                 "PUBLIC_API_INTERCOM_READ_WRITE",
                 "PUBLIC_API_CAMERA_AUDIO",
             ],
+            "accessible_access_sites": ["<site_id>", ...],
         },
         response={
             "apiKey": "<api_key>",
