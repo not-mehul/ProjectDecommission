@@ -839,34 +839,46 @@ class VerkadaInternalAPIClient:
             ConnectionError: If the API key limit (10) is exceeded.
             APIError: On other API failures.
         """
-        payload = {
-            "api_key_name": API_NAME + str(int(time.time())),
-            "expires_at": int(time.time() + 3600),
-            "roles": [
-                "PUBLIC_API_CAMERA_READ_WRITE",
-                "PUBLIC_API_SENSORS_READ_WRITE",
-                "PUBLIC_API_ACCESS_READ_WRITE",
-                "PUBLIC_API_ACCESS_LOCKDOWN_MANAGEMENT_READ_WRITE",
-                "PUBLIC_API_ACCESS_DOOR_MANAGEMENT_READ_WRITE",
-                "PUBLIC_API_ALARMS_READ_WRITE",
-                "PUBLIC_API_CORE_READ_WRITE",
-                "PUBLIC_API_HELIX_READ_WRITE",
-                "PUBLIC_API_WORKPLACE_READ_WRITE",
-                "PUBLIC_API_INTERCOM_READ_WRITE",
-                "PUBLIC_API_CAMERA_AUDIO",
-            ],
-        }
+        roles = [
+            "PUBLIC_API_CAMERA_READ_WRITE",
+            "PUBLIC_API_SENSORS_READ_WRITE",
+            "PUBLIC_API_ACCESS_READ_WRITE",
+            "PUBLIC_API_ACCESS_LOCKDOWN_MANAGEMENT_READ_WRITE",
+            "PUBLIC_API_ACCESS_DOOR_MANAGEMENT_READ_WRITE",
+            "PUBLIC_API_ALARMS_READ_WRITE",
+            "PUBLIC_API_CORE_READ_WRITE",
+            "PUBLIC_API_HELIX_READ_WRITE",
+            "PUBLIC_API_WORKPLACE_READ_WRITE",
+            "PUBLIC_API_INTERCOM_READ_WRITE",
+            "PUBLIC_API_CAMERA_AUDIO",
+        ]
 
         # Scope the key to the org's sites. An org with zero sites would
         # produce an empty accessible_access_sites list, which the granular
         # API rejects; omit the field entirely in that case so the key is
-        # still created. The log records whether the field was sent (and the
-        # site count) so the two paths are distinguishable after the fact.
+        # still created. The two site-scoped access roles only apply to
+        # access sites, so drop them as well when there are no sites. The
+        # log records whether the field was sent (and the site count) so the
+        # two paths are distinguishable after the fact.
         site_ids = [site["id"] for site in self.get_site()]
+        payload = {
+            "api_key_name": API_NAME + str(int(time.time())),
+            "expires_at": int(time.time() + 3600),
+            "roles": roles,
+        }
         if site_ids:
             payload["accessible_access_sites"] = site_ids
             sites_log = f', "accessible_access_sites": {len(site_ids)}'
         else:
+            payload["roles"] = [
+                r
+                for r in roles
+                if r
+                not in (
+                    "PUBLIC_API_ACCESS_LOCKDOWN_MANAGEMENT_READ_WRITE",
+                    "PUBLIC_API_ACCESS_DOOR_MANAGEMENT_READ_WRITE",
+                )
+            ]
             sites_log = ', "accessible_access_sites": "omitted (0 sites)"'
         log_request = (
             f'{{"api_key_name": "{payload["api_key_name"]}"{sites_log}}}'
