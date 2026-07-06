@@ -855,11 +855,22 @@ class VerkadaInternalAPIClient:
                 "PUBLIC_API_INTERCOM_READ_WRITE",
                 "PUBLIC_API_CAMERA_AUDIO",
             ],
-            "accessible_access_sites": [
-                site["id"] for site in self.get_site()
-            ],
         }
-        log_request = f'{{"api_key_name": "{payload["api_key_name"]}"}}'
+
+        # Scope the key to the org's sites. An org with zero sites would
+        # produce an empty accessible_access_sites list, which the granular
+        # API rejects; omit the field entirely in that case so the key is
+        # still created. The log records whether the field was sent (and the
+        # site count) so the two paths are distinguishable after the fact.
+        site_ids = [site["id"] for site in self.get_site()]
+        if site_ids:
+            payload["accessible_access_sites"] = site_ids
+            sites_log = f', "accessible_access_sites": {len(site_ids)}'
+        else:
+            sites_log = ', "accessible_access_sites": "omitted (0 sites)"'
+        log_request = (
+            f'{{"api_key_name": "{payload["api_key_name"]}"{sites_log}}}'
+        )
 
         try:
             data, status = self._request(
