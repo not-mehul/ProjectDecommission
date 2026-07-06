@@ -853,6 +853,9 @@ class VerkadaInternalAPIClient:
                 "PUBLIC_API_INTERCOM_READ_WRITE",
                 "PUBLIC_API_CAMERA_AUDIO",
             ],
+            "accessible_access_sites": [
+                site["id"] for site in self.get_site()
+            ],
         }
         log_request = f'{{"api_key_name": "{payload["api_key_name"]}"}}'
 
