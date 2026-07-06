@@ -610,6 +610,28 @@ ENDPOINTS: dict[str, Endpoint] = {
             "apiKeyName": "<api_key_name>",
         },
     ),
+    "alert.list": Endpoint(
+        subdomain="vlive",
+        method="POST",
+        path="alert_rules/get",
+        payload={"organizationId": "<org_id>", "showSharedAlerts": True, "filters": {}},
+        response=[
+            {
+                "alertRuleId": "<alert_rule_id>",
+                "organizationId": "<org_id>",
+                "name": "<alert_name>",
+                "ownerId": "<owner_id>",
+            },
+        ],
+    ),
+    "alert.delete": Endpoint(
+        subdomain="vlive",
+        method="POST",
+        path="alert_rules/delete",
+        payload={"organizationId": "<org_id>", "filterId": "<alert_rule_id>"},
+        response=None,
+    ),
+    # ── Site ─────────────────────────────────────────────────────────
     # ── Site ─────────────────────────────────────────────────────────
     "site.create": Endpoint(
         method="POST",
