@@ -907,8 +907,8 @@ ENDPOINTS: dict[str, Endpoint] = {
             "sortAscending": False,
             "sortBy": "creation_time",
             "filters": {
-                "footageTimeMin": "<epoch time - now>",
-                "footageTimeMax": "<epoch time - SEARCH_DURATION days ago>",
+                "footageTimeMin": "<epoch time - SEARCH_DURATION days ago>",
+                "footageTimeMax": "<epoch time - now>",
             },
         },
         response={

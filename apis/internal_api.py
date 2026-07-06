@@ -1614,10 +1614,9 @@ class VerkadaInternalAPIClient:
     def get_archive(self) -> list[dict[str, Any]]:
         """List footage archives within the SEARCH_DURATION-day look-back.
 
-        The archive.list endpoint filters by footage time. Per the endpoint
-        contract, footageTimeMin is 'now' and footageTimeMax is
-        SEARCH_DURATION days ago (both epoch seconds). Single page
-        (pageSize 99).
+        The archive.list endpoint filters by footage time. footageTimeMin is
+        the start of the window (SEARCH_DURATION days ago) and footageTimeMax
+        is the end (now), both epoch seconds. Single page (pageSize 99).
         """
         now = int(time.time())
         window_start = now - SEARCH_DURATION * 86400
@@ -1633,8 +1632,8 @@ class VerkadaInternalAPIClient:
                 "sortAscending": False,
                 "sortBy": "creation_time",
                 "filters": {
-                    "footageTimeMin": now,
-                    "footageTimeMax": window_start,
+                    "footageTimeMin": window_start,
+                    "footageTimeMax": now,
                 },
             },
             mapping_func=lambda a: {"id": a["archiveId"], "name": a.get("archiveId")},
