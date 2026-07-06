@@ -470,3 +470,18 @@ _EXTERNAL_DELETERS = {
     "Access Levels": "delete_access_level",
     "Access Groups": "delete_access_group",
 }
+
+# Internal-API fallbacks for categories normally scanned/deleted through
+# the public API. When the public-API getter fails (e.g. the temporary key
+# lacks access scope), the decommission scan retries the fetch through the
+# internal client, and any items found are then deleted through the internal
+# client too. Access levels are backed by schedules, so the public API's
+# access_level_id equals the internal scheduleId — the same UUID either
+# deleter accepts — which keeps the get/delete pair consistent.
+_INTERNAL_FALLBACK_GETTERS = {
+    "Access Levels": "get_access_level",
+}
+
+_INTERNAL_FALLBACK_DELETERS = {
+    "Access Levels": "delete_access_level",
+}
