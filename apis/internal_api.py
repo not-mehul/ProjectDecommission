@@ -1573,13 +1573,22 @@ class VerkadaInternalAPIClient:
             },
         )
 
-    def delete_group(self, group_id: str) -> None:
-        """Delete a single security entity group (endpoint accepts a list)."""
+    def delete_groups(self, group_ids: list[str]) -> None:
+        """Delete one or more security entity groups in a single call.
+
+        The group.delete endpoint accepts a list of ids, so the whole
+        selection can be removed with one request.
+        """
+        group_ids = list(group_ids)
         self._delete(
             "group.delete",
-            json={"securityEntityGroupIds": [group_id]},
-            oid=group_id,
+            json={"securityEntityGroupIds": group_ids},
+            oid=", ".join(group_ids),
         )
+
+    def delete_group(self, group_id: str) -> None:
+        """Delete a single security entity group."""
+        self.delete_groups([group_id])
 
     def get_access_user(self) -> list[dict[str, Any]]:
         """List access-control users with granted access.
@@ -1640,13 +1649,22 @@ class VerkadaInternalAPIClient:
             mapping_func=lambda a: {"id": a["archiveId"], "name": a.get("archiveId")},
         )
 
-    def delete_archive(self, archive_id: str) -> None:
-        """Delete a single footage archive (endpoint accepts a list)."""
+    def delete_archives(self, archive_ids: list[str]) -> None:
+        """Delete one or more footage archives in a single call.
+
+        The archive.delete endpoint accepts a list of ids, so the whole
+        selection can be removed with one request.
+        """
+        archive_ids = list(archive_ids)
         self._delete(
             "archive.delete",
-            json={"archiveIds": [archive_id]},
-            oid=archive_id,
+            json={"archiveIds": archive_ids},
+            oid=", ".join(archive_ids),
         )
+
+    def delete_archive(self, archive_id: str) -> None:
+        """Delete a single footage archive."""
+        self.delete_archives([archive_id])
 
     def get_incident(self) -> list[dict[str, Any]]:
         """List investigation incidents in the org (single page, limit 99)."""

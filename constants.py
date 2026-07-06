@@ -460,6 +460,23 @@ _INTERNAL_DELETERS = {
     "Alarm Sites": "delete_alarm_site",
 }
 
+# Categories whose delete endpoint accepts many ids in one request. Maps
+# the category to the internal client method that takes a *list* of ids; the
+# decommission run batches all selected items into chunked bulk calls
+# instead of one request per item. A category listed here must also appear
+# in _INTERNAL_DELETERS (its single-id method) so any non-bulk caller still
+# works. The endpoint returns no per-id result, so a failed chunk marks
+# every item in that chunk as failed.
+_INTERNAL_BULK_DELETERS = {
+    "Archives": "delete_archives",
+    "Groups": "delete_groups",
+}
+
+# Max ids sent per bulk-delete request. Scans return a single page (~99
+# items), so one chunk usually covers a category; chunking bounds the
+# request size and lets cancellation land between chunks.
+BULK_DELETE_CHUNK = 100
+
 _EXTERNAL_GETTERS = {
     "Cameras": "get_cameras",
     "Guest Sites": "get_guest_sites",
