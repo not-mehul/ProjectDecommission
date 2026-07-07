@@ -1712,12 +1712,23 @@ class VerkadaInternalAPIClient:
         )
 
     def delete_alert(self, alert_rule_id: str) -> None:
-        """Delete a single alert rule."""
-        self._delete(
-            "alert.delete",
-            json={"organizationId": self.org_id, "filterId": alert_rule_id},
-            oid=alert_rule_id,
-        )
+        """Delete a single alert rule.
+
+        `alert_rules/delete` performs the deletion but reports the removed rule
+        back as a non-2xx "alert rule not found" instead of an empty success.
+        Since "not found" means the rule is gone — the desired end state — we
+        treat it as an idempotent success rather than surfacing a spurious
+        failure. Any other API error still propagates.
+        """
+        try:
+            self._delete(
+                "alert.delete",
+                json={"organizationId": self.org_id, "filterId": alert_rule_id},
+                oid=alert_rule_id,
+            )
+        except APIError as e:
+            if "not found" not in str(e).lower():
+                raise
 
     def create_building(
         self, building_name: str, address: Address, floors: list
