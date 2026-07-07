@@ -236,7 +236,7 @@ ASSET_CATEGORIES = [
     "Access Controllers",
     "Floors",
     "Buildings",
-    "Visitor Access",
+    "Visitor Access Templates",
     "Schedules",
     "Access Levels",
     "Access Groups",
@@ -256,7 +256,10 @@ ASSET_CATEGORIES = [
     "Alarm Sites",
     # Sites (camera groups) go last — everything above lives inside one.
     "Sites",
-    # Users & misc
+    # Users & misc — Visits reference Visitors, and both precede Command
+    # Users in the deletion order.
+    "Visits",
+    "Visitors",
     "Command Users",
     # Security entity groups (only non-Verkada-managed are surfaced)
     "Groups",
@@ -273,7 +276,7 @@ CATEGORY_GROUPS = {
         "Access Controllers",
         "Floors",
         "Buildings",
-        "Visitor Access",
+        "Visitor Access Templates",
         "Schedules",
         "Access Levels",
         "Access Groups",
@@ -296,14 +299,16 @@ CATEGORY_GROUPS = {
 }
 
 # Dependency-aware deletion order — edit with care, the sequence matters.
-#   - Command Users first (the running user is excluded at scan time).
+#   - Visits first, then Visitors, then Command Users: a visit references a
+#     visitor, and a visitor is an access user, so tear them down from the
+#     most dependent to the least. The running user is excluded at scan time.
 #   - Intercoms, Doors and Access Station Pros before Cameras: intercoms
 #     and ASPs are also surfaced by the camera endpoint, so deleting them
 #     via their proper endpoints first avoids the camera-side delete
 #     failing on a half-gone device. Doors precede ASPs (door references
 #     ASP as its access controller).
 #   - Rest of Access Control: controllers → floors → buildings → visitor
-#     access → schedules → levels → scenarios → groups. Schedules must
+#     access templates → schedules → levels → scenarios → groups. Schedules must
 #     precede Access Levels (same backing endpoint, different object).
 #     Scenarios (lockdowns) hold release-group references, so they must
 #     be deleted BEFORE Access Groups — otherwise the server rejects
@@ -317,6 +322,9 @@ CATEGORY_GROUPS = {
 #   - Unassigned Devices are informational only — no delete endpoint exists,
 #     so they are intentionally absent here.
 DELETION_ORDER = [
+    # Visits reference Visitors reference Command Users — delete in that order.
+    "Visits",
+    "Visitors",
     "Command Users",
     # Security entity groups — after Command Users, before Doors.
     "Groups",
@@ -344,7 +352,7 @@ DELETION_ORDER = [
     "Access Controllers",
     "Floors",
     "Buildings",
-    "Visitor Access",
+    "Visitor Access Templates",
     "Schedules",
     "Access Levels",
     # Scenarios before Access Groups: a lockdown holds a release-group
@@ -398,7 +406,9 @@ _INTERNAL_GETTERS = {
     "Access Controllers": "get_access_controller",
     "Floors": "get_floor",
     "Buildings": "get_building",
-    "Visitor Access": "get_visitor_access",
+    "Visits": "get_visit",
+    "Visitors": "get_visitor",
+    "Visitor Access Templates": "get_visitor_access_template",
     "Schedules": "get_schedule",
     "Access Levels": "get_access_level",
     "Scenarios": "get_scenario",
@@ -443,7 +453,9 @@ _INTERNAL_DELETERS = {
     "Access Controllers": "delete_access_controller",
     "Floors": "delete_floor",
     "Buildings": "delete_building",
-    "Visitor Access": "delete_visitor_access",
+    "Visits": "delete_visit",
+    "Visitors": "delete_visitor",
+    "Visitor Access Templates": "delete_visitor_access_template",
     "Schedules": "delete_schedule",
     "Access Levels": "delete_access_level",
     "Scenarios": "delete_scenario",

@@ -1603,12 +1603,55 @@ class VerkadaInternalAPIClient:
             mapping_func=lambda u: {"id": u["userId"], "name": u.get("fullName")},
         )
 
-    def delete_access_user(self, user_id: str) -> None:
-        """Delete a single access-control user (endpoint accepts a list)."""
+    def get_visitor(self) -> list[dict[str, Any]]:
+        """List visitors — access users flagged is_visitor — with granted
+        access. Single page (pageSize 99). Deleted after Visits and before
+        Command Users.
+        """
+        return self._fetch_list(
+            "visitor.list",
+            response_key="users",
+            payload={
+                "organizationId": self.org_id,
+                "must_queries": [
+                    {"bool": {"must": [{"term": {"is_visitor": True}}]}}
+                ],
+                "status": ["access_granted"],
+                "status_filter_v2": True,
+                "paging": {
+                    "pageSize": 99,
+                    "sortOrder": ["first_name:asc", "email:asc"],
+                },
+            },
+            mapping_func=lambda u: {"id": u["userId"], "name": u.get("name")},
+        )
+
+    def delete_visitor(self, visitor_id: str) -> None:
+        """Delete a single visitor (endpoint accepts a list of userIds)."""
         self._delete(
-            "access_user.delete",
-            json={"organizationId": self.org_id, "userIds": [user_id]},
-            oid=user_id,
+            "visitor.delete",
+            json={"organizationId": self.org_id, "userIds": [visitor_id]},
+            oid=visitor_id,
+        )
+
+    def get_visit(self) -> list[dict[str, Any]]:
+        """List active visits (single page, page_size 99).
+
+        Visits reference visitors, so they are deleted first — before
+        Visitors and Command Users.
+        """
+        return self._fetch_list(
+            "visit.list",
+            response_key="visits",
+            mapping_func=lambda v: {"id": v["visitId"], "name": v.get("name")},
+        )
+
+    def delete_visit(self, visit_id: str) -> None:
+        """Delete a single visit."""
+        self._delete(
+            "visit.delete",
+            path_params={"visit_id": visit_id},
+            oid=visit_id,
         )
 
     def get_archive(self) -> list[dict[str, Any]]:
@@ -1915,9 +1958,10 @@ class VerkadaInternalAPIClient:
         )
         return visit_type_id
 
-    def get_visitor_access(self) -> list[dict[str, Any]]:
+    def get_visitor_access_template(self) -> list[dict[str, Any]]:
+        """List visitor access templates (visit types) in the org."""
         return self._fetch_list(
-            "visitor_access.list",
+            "visitor_access_type.list",
             response_key="visitTypes",
             mapping_func=lambda x: {
                 "id": x["visitTypeId"],
@@ -1925,11 +1969,12 @@ class VerkadaInternalAPIClient:
             },
         )
 
-    def delete_visitor_access(self, visitor_access_id: str) -> None:
+    def delete_visitor_access_template(self, visitor_access_type_id: str) -> None:
+        """Delete a single visitor access template (visit type)."""
         self._delete(
-            "visitor_access.delete",
-            path_params={"visitor_access_id": visitor_access_id},
-            oid=visitor_access_id,
+            "visitor_access_type.delete",
+            path_params={"visitor_access_type_id": visitor_access_type_id},
+            oid=visitor_access_type_id,
         )
 
     # ------------------------------------------------------------------
