@@ -221,6 +221,8 @@ ASSET_CATEGORIES = [
     "Desk Stations",
     "Sensors",
     "Cameras",
+    # Camera-tied watchlist (public API), scanned/deleted alongside Cameras.
+    "Persons of Interest",
     "Command Connectors",
     # Footage / investigations (Archives look-back window =
     # constants.SEARCH_DURATION days). Incidents reference footage, so they
@@ -326,6 +328,9 @@ DELETION_ORDER = [
     "Desk Stations",
     "Sensors",
     "Cameras",
+    # Persons of Interest are a camera-tied watchlist (public API); delete
+    # alongside Cameras.
+    "Persons of Interest",
     "Command Connectors",
     # Footage / investigations — after Command Connectors, before Guest
     # Sites. Incidents reference footage, so delete them before Archives;
@@ -462,11 +467,13 @@ _INTERNAL_DELETERS = {
 
 _EXTERNAL_GETTERS = {
     "Cameras": "get_cameras",
+    "Persons of Interest": "get_person_of_interest",
     "Guest Sites": "get_guest_sites",
     "Access Groups": "get_access_groups",
 }
 
 _EXTERNAL_DELETERS = {
     "Command Users": "delete_access_user",
+    "Persons of Interest": "delete_persons_of_interest",
     "Access Groups": "delete_access_group",
 }
