@@ -334,8 +334,8 @@ Everything user-tunable lives at the top of [`constants.py`](constants.py):
  
 | Constant | Default | Purpose |
 |---|---|---|
-| `APP_VERSION` | `3.1` | Shown in the title bar and used in API key names. |
-| `GITHUB_REPO` | `not-mehul/vcommander` | Repo polled for the auto-update banner. |
+| `APP_VERSION` | `3.3` | Shown in the title bar and used in API key names. |
+| `GITHUB_REPO` | `not-mehul/vCommander` | Repo polled for the auto-update banner. |
 | `DEV_SKIP_LOGIN` | `False` | Set `True` to bypass auth and land on Home (dev only). |
 | `MIN_WIDTH` / `MIN_HEIGHT` | 1100 × 800 | Window minimum size. |
 | `SESSION_TIMEOUT_MINUTES` | `30` | Minutes after login before auto-logout (fixed window, not reset by navigation). |
@@ -360,6 +360,8 @@ vCommander/
 ├── constants.py             # Theme, layout, template + decommission tables
 ├── requirements.txt
 ├── apis/
+│   ├── endpoints.py         # Endpoint registry + URL builders (resolve/build_url)
+│   ├── http.py              # Shared requests.Session factory (retry + default timeout)
 │   ├── internal_api.py      # VerkadaInternalAPIClient (vprovision)
 │   └── external_api.py      # VerkadaExternalAPIClient (apidocs.verkada.com)
 ├── pages/

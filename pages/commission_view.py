@@ -121,8 +121,7 @@ class CommissionView(ToolView):
         internal = os.path.join(_ASSETS_DIR, "kits.internal.csv")
         public = os.path.join(_ASSETS_DIR, "kits.csv")
         path = internal if os.path.exists(internal) else public
-        with open(os.path.join(_ASSETS_DIR, path), newline="") as f:
-            print(f"[commission] loaded kits: {list(self._kits.keys())}")
+        with open(path, newline="") as f:
             reader = csv.DictReader(f)
             for r in reader:
                 kit_name = r["Kit Name"]
@@ -630,7 +629,7 @@ class CommissionView(ToolView):
         )
         track(ok)
 
-        ok, floor_id = await step(
+        ok, _ = await step(
             "Creating building",
             client.create_building,
             ESS_BUILDING_NAME,

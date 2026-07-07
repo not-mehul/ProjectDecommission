@@ -8,6 +8,7 @@ import asyncio
 
 import flet as ft
 
+from components import set_button_loading
 from constants import (
     BG,
     BORDER,
@@ -21,7 +22,7 @@ from constants import (
 )
 from utils.executor import _executor
 from utils.session import get_internal_client
-from utils.ui_utils import set_button_loading, show_alert, show_toast
+from utils.ui_utils import show_alert, show_toast
 
 
 def _strip(value: str | None) -> str:

@@ -33,7 +33,7 @@ DEV_SKIP_LOGIN = False
 # values are identical to the originals, so this is a pure indirection with
 # no visual change — but it routes every view through a single, swappable
 # palette (enabling the light/dark toggle later).
-from theme import (  # noqa: E402
+from theme import (  # noqa: E402, F401  (intentional re-exports; see comment above)
     BG,
     BORDER,
     ERROR,

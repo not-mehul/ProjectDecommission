@@ -39,7 +39,11 @@ from components import (
     ProgressHeader,
     Stepper,
     banner,
+    danger_button,
+    primary_button,
+    secondary_button,
     section_header,
+    set_button_loading,
     stat_row,
     status_row,
 )
@@ -49,7 +53,7 @@ from utils.executor import _executor
 from utils.export import export_csv
 from utils.logger import log_system
 from utils.session import get_external_client, get_internal_client, set_external_client
-from utils.ui_utils import set_button_loading, show_alert, show_toast
+from utils.ui_utils import show_alert, show_toast
 
 # Reverse lookup: child category -> parent group name (built once from
 # CATEGORY_GROUPS so the view can ask "which group does this belong to?").
@@ -98,43 +102,6 @@ _STATE_STEP = {
     PROCESSING: 4,
     COMPLETE: 5,
 }
-
-
-# ---------------------------------------------------------------------------
-# Small UI factories
-# ---------------------------------------------------------------------------
-
-
-def _make_button(
-    text: str,
-    on_click,
-    *,
-    bgcolor: str = PRIMARY,
-    height: int = 42,
-    width: int | None = None,
-    visible: bool = True,
-) -> ft.ElevatedButton:
-    """Build a styled ElevatedButton consistent with the rest of the app."""
-    return ft.ElevatedButton(
-        content=ft.Text(text, color=TEXT_PRIMARY, weight=ft.FontWeight.W_600),
-        bgcolor=bgcolor,
-        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)),
-        height=height,
-        width=width,
-        visible=visible,
-        on_click=on_click,
-    )
-
-
-def _section_heading(title: str, subtitle: str | None = None) -> list[ft.Control]:
-    """Title/subtitle pair shown at the top of each state's content area."""
-    out: list[ft.Control] = [
-        ft.Text(title, size=18, color=TEXT_PRIMARY, weight=ft.FontWeight.W_600),
-    ]
-    if subtitle:
-        out.append(ft.Text(subtitle, size=13, color=TEXT_SECONDARY))
-    out.append(ft.Container(height=10))
-    return out
 
 
 class DecommissionView(ToolView):
@@ -219,8 +186,8 @@ class DecommissionView(ToolView):
     # ------------------------------------------------------------------
 
     def _render_scan(self):
-        self._scan_btn = _make_button(
-            "Scan Organization", self._on_scan, height=45, width=240
+        self._scan_btn = primary_button(
+            "Scan Organization", on_click=self._on_scan, height=45, width=240
         )
         # Prep-step progress rows — populated by _on_scan during the
         # permission-elevation phase, then hidden when the scan loop starts.
@@ -486,10 +453,9 @@ class DecommissionView(ToolView):
                             text_align=ft.TextAlign.CENTER,
                         ),
                         ft.Container(height=20),
-                        _make_button(
+                        secondary_button(
                             "Return to Home",
-                            lambda _: self.push_route("/home"),
-                            bgcolor=SECONDARY,
+                            on_click=lambda _: self.push_route("/home"),
                             width=240,
                         ),
                     ],
@@ -499,14 +465,15 @@ class DecommissionView(ToolView):
             return
 
         self._content_area.controls = [
-            *_section_heading(
+            section_header(
                 "Assets Found",
                 f"{total} total assets discovered across "
                 f"{len(ASSET_CATEGORIES)} categories.",
             ),
+            ft.Container(height=10),
             ft.Column(rows, spacing=8),
             ft.Container(height=15),
-            _make_button("Select Assets to Remove", self._go_to_select),
+            primary_button("Select Assets to Remove", on_click=self._go_to_select),
         ]
 
     def _go_to_select(self, e):
@@ -549,8 +516,8 @@ class DecommissionView(ToolView):
 
         # SELECT no longer deletes directly — it advances to the CONFIRM
         # summary, where the destructive action is confirmed.
-        self._delete_btn = _make_button(
-            "Review Selection", self._on_review_selection
+        self._delete_btn = primary_button(
+            "Review Selection", on_click=self._on_review_selection
         )
         export_btn = ft.OutlinedButton(
             content=ft.Text(
@@ -604,11 +571,12 @@ class DecommissionView(ToolView):
         )
 
         self._content_area.controls = [
-            *_section_heading(
+            section_header(
                 "Select Categories to Remove",
                 "Uncheck a category to skip. Toggle Show items to inspect "
                 "individual assets.",
             ),
+            ft.Container(height=10),
             top_bar,
             ft.Container(height=10),
             ft.Column(tiles, spacing=4),
@@ -909,10 +877,9 @@ class DecommissionView(ToolView):
             total += count
             rows.append(stat_row(category, count, accent=ERROR))
 
-        confirm_btn = _make_button(
+        confirm_btn = danger_button(
             f"Delete {total} Asset{'s' if total != 1 else ''}",
-            self._on_delete,
-            bgcolor=ERROR,
+            on_click=self._on_delete,
         )
         back_btn = ft.TextButton(
             content=ft.Row(
@@ -927,12 +894,13 @@ class DecommissionView(ToolView):
         )
 
         self._content_area.controls = [
-            *_section_heading(
+            section_header(
                 "Confirm Deletion",
                 f"{total} asset{'s' if total != 1 else ''} across "
                 f"{len(selected)} categor{'ies' if len(selected) != 1 else 'y'} "
                 "will be permanently removed.",
             ),
+            ft.Container(height=10),
             banner(
                 "This permanently deletes the selected assets in dependency "
                 "order and cannot be undone.",
@@ -1096,11 +1064,12 @@ class DecommissionView(ToolView):
         )
 
         self._content_area.controls = [
-            *_section_heading(
+            section_header(
                 "Processing Deletions",
                 "Click a category to expand its per-item detail. "
                 "Cancel stops after the current item completes.",
             ),
+            ft.Container(height=10),
             self._progress_header,
             self._processing_status,
             ft.Container(height=10),
@@ -1483,7 +1452,8 @@ class DecommissionView(ToolView):
 
         report_kind = "warning" if (skipped or overall_color == WARNING) else "success"
         controls: list[ft.Control] = [
-            *_section_heading(title),
+            section_header(title),
+            ft.Container(height=10),
             banner(subtitle, kind=report_kind),
         ]
         if failures:
@@ -1521,10 +1491,9 @@ class DecommissionView(ToolView):
                         height=42,
                         on_click=self._on_export_report,
                     ),
-                    _make_button(
+                    secondary_button(
                         "Return to Home",
-                        lambda _: self.push_route("/home"),
-                        bgcolor=SECONDARY,
+                        on_click=lambda _: self.push_route("/home"),
                     ),
                 ],
                 spacing=10,

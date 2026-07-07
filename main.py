@@ -62,6 +62,20 @@ _THEMED_MODULES = [
 # the user is inside a tool or the window is backgrounded.
 _SESSION_WATCHDOG_INTERVAL = 5
 
+# Strong references to app-lifetime background tasks. asyncio keeps only a weak
+# reference to a bare create_task() result, so without this the version check
+# or — critically — the session watchdog (auto-logout enforcement) could be
+# garbage-collected mid-run.
+_BACKGROUND_TASKS: set[asyncio.Task] = set()
+
+
+def _spawn(coro) -> asyncio.Task:
+    """Start a background task and keep a strong reference until it finishes."""
+    task = asyncio.create_task(coro)
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
+    return task
+
 
 async def main(page: ft.Page):
     """Flet app entry point. Sets window chrome and pushes the login screen."""
@@ -273,8 +287,8 @@ async def main(page: ft.Page):
 
     page.on_keyboard_event = on_key
 
-    asyncio.create_task(run_version_check())
-    asyncio.create_task(session_watchdog())
+    _spawn(run_version_check())
+    _spawn(session_watchdog())
 
 
 ft.run(main)

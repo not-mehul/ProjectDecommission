@@ -15,6 +15,7 @@ Tool screens are lightweight `ToolView`s: they build a body control and expose
 from __future__ import annotations
 
 import asyncio
+import contextlib
 
 import flet as ft
 
@@ -374,10 +375,8 @@ class AppShell(ft.View):
     def _safe_update(self):
         page = self._get_page()
         if page:
-            try:
+            with contextlib.suppress(Exception):
                 page.update()
-            except Exception:
-                pass
 
     # ------------------------------------------------------------------
     # Session timer

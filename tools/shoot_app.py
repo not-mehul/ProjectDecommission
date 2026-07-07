@@ -11,6 +11,7 @@ Forces the locally-bundled CanvasKit (no_cdn) so it renders in an offline
 headless browser.
 """
 
+import contextlib
 import os
 
 import flet as ft
@@ -92,10 +93,8 @@ def _drive(page, view, key, state):
         if key == "commission":
             if state in ("review", "report"):
                 view.template_dropdown.value = "AS"
-                try:
+                with contextlib.suppress(Exception):
                     view._on_template_change(type("E", (), {"page": page})())
-                except Exception:
-                    pass
                 for dt in TEMPLATE_FIELDS["AS"]["devices"]:
                     f = view._device_fields.get(dt)
                     if f:
@@ -160,10 +159,8 @@ def _drive(page, view, key, state):
                         {"first_name": "Participant", "last_name": f"{n}",
                          "email": f"trainee+{n}@verkada.com"} for n in range(1, 5)
                     ]
-                    try:
+                    with contextlib.suppress(Exception):
                         view._rebuild_participants_list()
-                    except Exception:
-                        pass
                 view._current_step = step
                 for i, s in enumerate(view._steps):
                     s.visible = i == step

@@ -122,27 +122,33 @@ def ghost_button(
 def set_button_loading(
     btn: ft.ElevatedButton, loading: bool, label: str, auto_update: bool = True
 ):
-    """Toggle a filled button between a spinner state and its normal label.
+    """Toggle a button between a spinner state and its normal label.
 
-    The restored label uses the project's semibold weight and the accent's
-    on-color so a failed round-trip doesn't leave the button looking
-    lighter than its siblings.
+    The label color is captured from the button's own content the first time
+    it toggles, so the restored label keeps whatever color the button was built
+    with (accent-on-fill for `primary_button`, the neutral text color for the
+    older filled buttons, …) instead of assuming a single variant. Preserving
+    the semibold weight keeps a post-round-trip button from looking lighter
+    than its siblings.
     """
-    text_color = theme.ON_ACCENT
+    base_color = getattr(btn, "_loading_base_color", None)
+    if base_color is None:
+        base_color = getattr(btn.content, "color", None) or theme.ON_ACCENT
+        btn._loading_base_color = base_color
     if loading:
         btn.content = ft.Row(
             [
                 ft.ProgressRing(
-                    width=16, height=16, stroke_width=2, color=text_color
+                    width=16, height=16, stroke_width=2, color=base_color
                 ),
-                ft.Text(f"  {label}...", color=text_color),
+                ft.Text(f"  {label}...", color=base_color),
             ],
             alignment=ft.MainAxisAlignment.CENTER,
         )
         btn.disabled = True
     else:
         btn.content = ft.Text(
-            label, color=text_color, weight=theme.WEIGHT_SEMIBOLD
+            label, color=base_color, weight=theme.WEIGHT_SEMIBOLD
         )
         btn.disabled = False
     if auto_update:
