@@ -1355,24 +1355,6 @@ ENDPOINTS: dict[str, Endpoint] = {
         payload={"floorPlanId": "<floor_plan_id>"},
         response={},
     ),
-    "access_user.list": Endpoint(
-        method="POST",
-        subdomain="vcerberus",
-        path="access/v2/user/users/search",
-        payload={
-            "organizationId": "<org_id>",
-            "status": ["access_granted"],
-            "status_filter_v2": True,
-            "paging": {"pageSize": 99, "sortOrder": ["first_name:asc", "email:asc"]},
-        },
-        response={
-            "nextPageToken": "WyJaYWNoYXJ5IiwgbnVsbCwgIjg3MDY1OTIxLWVjY2QtNDg5OS1iODg0LTE5ZGViMWUwYTJlNSJd",
-            "total": 1,
-            "users": [
-                {"fullName": "<full_name>", "userId": "<user_id>"},
-            ],
-        },
-    ),
     "visitor.list": Endpoint(
         method="POST",
         subdomain="vcerberus",

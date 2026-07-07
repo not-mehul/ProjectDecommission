@@ -1581,28 +1581,6 @@ class VerkadaInternalAPIClient:
             oid=group_id,
         )
 
-    def get_access_user(self) -> list[dict[str, Any]]:
-        """List access-control users with granted access.
-
-        Single page (pageSize 99); orgs beyond one page would need the
-        `nextPageToken` followed — not needed for lab-scale orgs today.
-        """
-        return self._fetch_list(
-            "access_user.list",
-            response_key="users",
-            payload={
-                "organizationId": self.org_id,
-                "status": ["access_granted"],
-                "status_filter_v2": True,
-                "paging": {
-                    "pageSize": 99,
-                    "sortOrder": ["first_name:asc", "email:asc"],
-                },
-            },
-            filter_func=lambda u: u.get("userId") != self.user_id,
-            mapping_func=lambda u: {"id": u["userId"], "name": u.get("fullName")},
-        )
-
     def get_visitor(self) -> list[dict[str, Any]]:
         """List visitors — access users flagged is_visitor — with granted
         access. Single page (pageSize 99). Deleted after Visits and before
@@ -1906,57 +1884,6 @@ class VerkadaInternalAPIClient:
             error_context=f"Failed to pair LPR camera with door '{door_id}'",
             log_request=f'{{"lprCameraId": "{lpr_camera_id}"}}',
         )
-
-    def create_visitor_access(
-        self, site_id: str, visitor_access_name: str, visitor_access_description: str
-    ) -> str:
-        """
-        Creates a visitor access (visit type) for a site. Returns the
-        visitTypeId.
-
-        Only the dynamic fields (site, name, description) are passed; the
-        endpoint default fills the rest (roll-call on, all unlock methods
-        off, 3-hour max duration).
-        """
-        data, status = self._request(
-            "visitor_access.create",
-            json={
-                "cardEnabled": False,
-                "codeEnabled": False,
-                "qrCodeEnabled": False,
-                "lpEnabled": False,
-                "liveLinkEnabled": False,
-                "bleEnabled": False,
-                "remoteUnlockEnabled": False,
-                "faceUnlockEnabled": False,
-                "rollCallEnabled": True,
-                "sites": [site_id],
-                "doors": [],
-                "updatedSchedule": False,
-                "rollCallSiteIds": [site_id],
-                "maximumDurationSeconds": 10800,
-                "schedules": [],
-                "directoryId": None,
-                "name": visitor_access_name,
-                "description": visitor_access_description,
-            },
-            error_context=(f"Failed to create visitor access '{visitor_access_name}'"),
-            log_request=f'{{"name": "{visitor_access_name}"}}',
-            auto_log=False,
-        )
-        visit_type_id = data.get("visitTypeId")
-        if not visit_type_id:
-            raise ConnectionError(
-                f"Failed to create visitor access '{visitor_access_name}': "
-                "no visitTypeId in response."
-            )
-        self._log(
-            "visitor_access.create",
-            status,
-            log_request=f'{{"name": "{visitor_access_name}"}}',
-            log_response=f'{{"visitTypeId": "{visit_type_id}"}}',
-        )
-        return visit_type_id
 
     def get_visitor_access_template(self) -> list[dict[str, Any]]:
         """List visitor access templates (visit types) in the org."""

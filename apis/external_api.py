@@ -297,9 +297,6 @@ class VerkadaExternalAPIClient:
     def get_person_of_interest(self) -> list[dict[str, Any]]:
         return self.get_object("persons_of_interest")
 
-    def get_access_users(self) -> list[dict[str, Any]]:
-        return self.get_users()
-
     def get_users(
         self,
         exclude_user_id: str | None = None,

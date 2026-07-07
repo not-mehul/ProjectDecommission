@@ -114,7 +114,6 @@ ESS_GUEST_ADDRESS = (
     "US",
 )
 ESS_PARTITION_NAME = "VCE Partition"
-ESS_VISITOR_ACCESS_NAME = "VCE Instructor Visitor Access"
 
 VSS_SITE_NAME = "HQ"
 VSS_BULLET_NAME = "HQ Bullet"
