@@ -2,37 +2,6 @@ import flet as ft
 
 from constants import BG, ERROR, SECONDARY, TEXT_PRIMARY, WARNING
 
-
-def set_button_loading(
-    btn: ft.ElevatedButton, loading: bool, label: str, auto_update: bool = True
-):
-    """Toggle an ElevatedButton between a loading-spinner state and a normal state.
-
-    The non-loading content is restored with `weight=W_600` because that's the
-    weight every button in the project is created with; without it, every
-    failed login/connect/load round-trip would leave the button visibly less
-    bold than its neighbors.
-    """
-    if loading:
-        btn.content = ft.Row(
-            [
-                ft.ProgressRing(
-                    width=16, height=16, stroke_width=2, color=TEXT_PRIMARY
-                ),
-                ft.Text(f"  {label}...", color=TEXT_PRIMARY),
-            ],
-            alignment=ft.MainAxisAlignment.CENTER,
-        )
-        btn.disabled = True
-    else:
-        btn.content = ft.Text(label, color=TEXT_PRIMARY, weight=ft.FontWeight.W_600)
-        btn.disabled = False
-    if auto_update:
-        page = getattr(btn, "page", None)
-        if page:
-            page.update()
-
-
 _TOAST_BG = {
     "info": None,        # default Flet SnackBar background
     "success": SECONDARY,

@@ -20,8 +20,8 @@ Both a `DARK` and a `LIGHT` palette are defined. The module exposes the
 active palette as `palette` and mirrors its fields as flat module-level
 names (BG, SURFACE, …) so call sites can `from theme import BG`. Call
 `set_theme_mode("light")` / `set_theme_mode("dark")` to switch; it rebinds
-those flat names in place. (The runtime toggle UI lands in a later phase;
-the plumbing lives here now.)
+those flat names in place. The runtime toggle UI (header button + Cmd-K
+command in `app_shell`/`main`) drives this at runtime.
 """
 
 from __future__ import annotations
@@ -212,8 +212,8 @@ def set_theme_mode(mode: str) -> None:
 
     `mode` is "dark" or "light". Views that imported the flat names by
     reference (e.g. `from theme import BG`) won't see the rebind, so the
-    app re-reads `theme.palette` / the flat names on (re)mount. This phase
-    only establishes the plumbing; the toggle UI arrives later.
+    app re-reads `theme.palette` / the flat names on (re)mount, driven by the
+    header toggle button and the Cmd-K "Toggle light / dark theme" command.
     """
     global palette
     palette = _PALETTES.get(mode, DARK)

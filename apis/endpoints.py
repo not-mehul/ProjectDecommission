@@ -920,7 +920,9 @@ ENDPOINTS: dict[str, Endpoint] = {
         },
     ),
     "archive.delete": Endpoint(
-        method="POST",
+        # Must be DELETE — the same path served as POST returns
+        # "Insufficient permissions" for the org/user session.
+        method="DELETE",
         subdomain="vsubmit",
         path="library/v2/archive/delete",
         payload={"archiveIds": ["<archive_id>"]},

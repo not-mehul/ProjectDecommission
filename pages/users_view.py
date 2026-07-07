@@ -28,68 +28,21 @@ from constants import (
     WARNING,
     load_internal_invite_defaults,
 )
-from components import Stepper
+from components import (
+    Stepper,
+    primary_button,
+    secondary_button,
+    section_header,
+    set_button_loading,
+    text_field,
+)
 from pages.app_shell import ToolView
 from utils.db import load_import_settings, save_import_settings
 from utils.executor import _executor
 from utils.session import get_external_client, get_internal_client, set_external_client
-from utils.ui_utils import set_button_loading, show_alert, show_toast
+from utils.ui_utils import show_alert, show_toast
 
 _STEP_LABELS = ["API Key", "Site & Date", "Review", "Invite"]
-
-
-# ---------------------------------------------------------------------------
-# Small UI factories
-# ---------------------------------------------------------------------------
-
-
-def _make_text_field(
-    label: str = "",
-    *,
-    value: str = "",
-    password: bool = False,
-    can_reveal_password: bool = False,
-) -> ft.TextField:
-    """Build a styled TextField with the project's standard look."""
-    return ft.TextField(
-        label=label,
-        value=value,
-        password=password,
-        can_reveal_password=can_reveal_password,
-        border_color=BORDER,
-        focused_border_color=PRIMARY,
-        color=TEXT_PRIMARY,
-        label_style=ft.TextStyle(color=TEXT_SECONDARY),
-    )
-
-
-def _make_button(
-    text: str,
-    on_click,
-    *,
-    primary: bool = True,
-    visible: bool = True,
-) -> ft.ElevatedButton:
-    """Build a styled ElevatedButton with the project's standard look."""
-    return ft.ElevatedButton(
-        content=ft.Text(text, color=TEXT_PRIMARY, weight=ft.FontWeight.W_600),
-        bgcolor=PRIMARY if primary else SECONDARY,
-        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)),
-        height=42,
-        visible=visible,
-        on_click=on_click,
-    )
-
-
-def _section_heading(title: str, subtitle: str | None = None) -> list[ft.Control]:
-    """Build the title/subtitle pair shown at the top of each step."""
-    out: list[ft.Control] = [
-        ft.Text(title, size=16, color=TEXT_PRIMARY, weight=ft.FontWeight.W_500),
-    ]
-    if subtitle:
-        out.append(ft.Text(subtitle, size=13, color=TEXT_SECONDARY))
-    out.append(ft.Container(height=10))
-    return out
 
 
 def _strip(value: str | None) -> str:
@@ -178,24 +131,25 @@ class UsersView(ToolView):
             "org_short_name", ""
         )
 
-        self._api_key_field = _make_text_field(
+        self._api_key_field = text_field(
             label="API Key",
             password=True,
             can_reveal_password=True,
             value=api_key_default,
         )
-        self._import_org_field = _make_text_field(
+        self._import_org_field = text_field(
             label="Org Short Name (External)",
             value=org_default,
         )
-        self._connect_btn = _make_button("Connect", self._on_connect)
+        self._connect_btn = primary_button("Connect", on_click=self._on_connect)
 
         return ft.Column(
             [
-                *_section_heading(
+                section_header(
                     "External Organization",
                     "Enter the API key and org short name for the external organization.",
                 ),
+                ft.Container(height=10),
                 self._api_key_field,
                 ft.Container(height=FIELD_SPACING),
                 self._import_org_field,
@@ -270,16 +224,17 @@ class UsersView(ToolView):
             on_click=self._open_date_picker,
         )
 
-        self._step2_next_btn = _make_button(
-            "Load Participants", self._on_load_participants
+        self._step2_next_btn = primary_button(
+            "Load Participants", on_click=self._on_load_participants
         )
 
         return ft.Column(
             [
-                *_section_heading(
+                section_header(
                     "Select Site & Date",
                     "Choose the site and date to load guest visits.",
                 ),
+                ft.Container(height=10),
                 self._site_dropdown,
                 ft.Container(height=FIELD_SPACING),
                 self._date_btn,
@@ -352,14 +307,15 @@ class UsersView(ToolView):
             content=ft.Text("+ Add Participant", color=PRIMARY),
             on_click=self._add_participant_row,
         )
-        self._invite_btn = _make_button("Invite All", self._on_invite_all)
+        self._invite_btn = primary_button("Invite All", on_click=self._on_invite_all)
 
         return ft.Column(
             [
-                *_section_heading(
+                section_header(
                     "Review Participants",
                     "Edit the participant list before inviting.",
                 ),
+                ft.Container(height=10),
                 ft.Row(
                     [self._participant_count_text],
                     alignment=ft.MainAxisAlignment.START,
@@ -465,21 +421,18 @@ class UsersView(ToolView):
         # successfully invited. Populated by _run_invites; consumed by
         # _on_copy_invited.
         self._invited_records: list[tuple[str, str, str]] = []
-        self._copy_btn = _make_button(
-            "Copy Invited List",
-            self._on_copy_invited,
-            primary=True,
-            visible=False,
+        self._copy_btn = primary_button(
+            "Copy Invited List", on_click=self._on_copy_invited
         )
-        self._done_btn = _make_button(
-            "Return to Home",
-            lambda _: self.push_route("/home"),
-            primary=False,
-            visible=False,
+        self._copy_btn.visible = False
+        self._done_btn = secondary_button(
+            "Return to Home", on_click=lambda _: self.push_route("/home")
         )
+        self._done_btn.visible = False
         return ft.Column(
             [
-                *_section_heading("Inviting Participants"),
+                section_header("Inviting Participants"),
+                ft.Container(height=10),
                 self._invite_progress,
                 ft.Container(height=15),
                 ft.Row(

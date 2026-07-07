@@ -1,10 +1,8 @@
 from typing import Any
 
-import requests
-from requests.adapters import HTTPAdapter
 from requests.exceptions import JSONDecodeError, RequestException
-from urllib3.util.retry import Retry
 
+from apis.http import build_session
 from utils.logger import log_api_call
 
 _VALID_REGIONS = frozenset({"api", "api.eu", "api.au"})
@@ -27,18 +25,9 @@ class VerkadaExternalAPIClient:
                 f"Invalid region: {region!r}; expected one of {sorted(_VALID_REGIONS)}"
             )
 
-        self.session = requests.Session()
-
-        # Retry on transient failures with exponential backoff
-        retries = Retry(
-            total=4,
-            backoff_factor=0.5,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods={"POST", "GET", "DELETE", "PUT"},
-        )
-        adapter = HTTPAdapter(max_retries=retries)
-        self.session.mount("https://", adapter)
-        self.session.mount("http://", adapter)
+        # Session carries retry + a default timeout (see apis/http.py); the
+        # missing timeout previously let a stalled token/scan call hang forever.
+        self.session = build_session()
 
         self.api_token = self._generate_api_token()
 
@@ -64,9 +53,11 @@ class VerkadaExternalAPIClient:
             response = self.session.post(url, headers=headers)
             data = response.json()
         except JSONDecodeError:
-            raise ConnectionError("Failed to generate API token: non-JSON response.")
+            raise ConnectionError(
+                "Failed to generate API token: non-JSON response."
+            ) from None
         except RequestException as e:
-            raise ConnectionError(f"Failed to generate API token: {e}")
+            raise ConnectionError(f"Failed to generate API token: {e}") from e
 
         if not response.ok:
             msg = data.get("message", response.text)
@@ -138,7 +129,7 @@ class VerkadaExternalAPIClient:
                 method, url, json=json, params=params, headers=headers
             )
         except RequestException as e:
-            raise ConnectionError(f"{error_context}: {e}")
+            raise ConnectionError(f"{error_context}: {e}") from e
 
         # The API token is short-lived and generated once when this client is
         # created. On a long scan/delete it can expire mid-run, surfacing as a
@@ -170,7 +161,7 @@ class VerkadaExternalAPIClient:
                 if not response.ok:
                     raise ConnectionError(
                         f"{error_context}: {response.text or 'non-JSON response.'}"
-                    )
+                    ) from None
                 data = {}
         else:
             data = {}

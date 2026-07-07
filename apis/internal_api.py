@@ -1,7 +1,6 @@
 import time
 from typing import Any
 
-import requests
 from requests.exceptions import JSONDecodeError, RequestException
 
 from apis.endpoints import (
@@ -16,6 +15,7 @@ from apis.endpoints import (
     build_url,
     resolve,
 )
+from apis.http import build_session
 from constants import (
     API_NAME,
     AS_INSTRUCTOR_KEYCODE,
@@ -110,8 +110,9 @@ class VerkadaInternalAPIClient:
         self.org_short_name = org_short_name
         self.shard = shard
 
-        # Persistent session keeps cookies alive across requests
-        self.session = requests.Session()
+        # Persistent session keeps cookies alive across requests; the shared
+        # factory adds retry on transient failures + a default timeout.
+        self.session = build_session()
 
         # Populated by _parse_login_response() after successful auth
         self.auth_data: dict[str, str] | None = None
@@ -192,7 +193,9 @@ class VerkadaInternalAPIClient:
                 "adminUserId": admin_user_id,
             }
         except KeyError as e:
-            raise ValueError(f"Unexpected login response format, missing key: {e}")
+            raise ValueError(
+                f"Unexpected login response format, missing key: {e}"
+            ) from e
 
     def _login_url(self) -> str:
         """Pre-auth helper: build the login URL from the registry."""
@@ -359,7 +362,7 @@ class VerkadaInternalAPIClient:
                 timeout=DEFAULT_TIMEOUT,
             )
         except RequestException as e:
-            raise ConnectionError(f"{error_context}: {e}")
+            raise ConnectionError(f"{error_context}: {e}") from e
 
         # Tolerate empty bodies (some DELETEs and a few POSTs return nothing).
         if response.content:
@@ -370,7 +373,7 @@ class VerkadaInternalAPIClient:
                     raise APIError(
                         f"{error_context}: {response.text or 'non-JSON response.'}",
                         status_code=response.status_code,
-                    )
+                    ) from None
                 data = {}
         else:
             data = {}
@@ -455,9 +458,9 @@ class VerkadaInternalAPIClient:
             log_api_call("POST", log_label, log_request, "200", "non-JSON response")
             raise ConnectionError(
                 f"{error_label}: server returned a non-JSON response."
-            )
+            ) from None
         except RequestException as e:
-            raise ConnectionError(f"{error_label}: {e}")
+            raise ConnectionError(f"{error_label}: {e}") from e
         return data, response.status_code
 
     def _send_mfa_sms(self) -> str | None:
@@ -489,9 +492,9 @@ class VerkadaInternalAPIClient:
             log_api_call("POST", log_label, log_request, "200", "non-JSON response")
             raise ConnectionError(
                 "Failed to send SMS code: server returned a non-JSON response."
-            )
+            ) from None
         except RequestException as e:
-            raise ConnectionError(f"Failed to send SMS code: {e}")
+            raise ConnectionError(f"Failed to send SMS code: {e}") from e
 
         sms_sent = data.get("smsSent") if isinstance(data, dict) else None
         log_api_call(
@@ -765,7 +768,7 @@ class VerkadaInternalAPIClient:
             )
         except APIError as e:
             if e.code == "cannot_invite_existing":
-                raise ValueError(f"User already exists in this org: {email}")
+                raise ValueError(f"User already exists in this org: {email}") from e
             raise
 
         invitation_id = (data.get("orgInvitation") or [{}])[0].get(
@@ -869,7 +872,7 @@ class VerkadaInternalAPIClient:
             if e.status_code == 400 and "10 api keys limit" in str(e):
                 raise ConnectionError(
                     "Failed to create external API key: exceeded 10 API keys limit."
-                )
+                ) from e
             raise
 
         api_key = data.get("apiKey", "")
@@ -1709,12 +1712,23 @@ class VerkadaInternalAPIClient:
         )
 
     def delete_alert(self, alert_rule_id: str) -> None:
-        """Delete a single alert rule."""
-        self._delete(
-            "alert.delete",
-            json={"organizationId": self.org_id, "filterId": alert_rule_id},
-            oid=alert_rule_id,
-        )
+        """Delete a single alert rule.
+
+        `alert_rules/delete` performs the deletion but reports the removed rule
+        back as a non-2xx "alert rule not found" instead of an empty success.
+        Since "not found" means the rule is gone — the desired end state — we
+        treat it as an idempotent success rather than surfacing a spurious
+        failure. Any other API error still propagates.
+        """
+        try:
+            self._delete(
+                "alert.delete",
+                json={"organizationId": self.org_id, "filterId": alert_rule_id},
+                oid=alert_rule_id,
+            )
+        except APIError as e:
+            if "not found" not in str(e).lower():
+                raise
 
     def create_building(
         self, building_name: str, address: Address, floors: list
