@@ -26,7 +26,7 @@ v3.2
 v3.3
 - (New feature) Updated UI to be more consistent throughout the tool with a sidebar. Major UI revamp.
 - (New feature) Kit A Added to the Database!
-- (New feature) Decommission tool now lists and deletes Command Groups and Archives.
+- (New feature) Decommission tool now lists and deletes Incidents, Alerts and Archives, Persons of Interest.
 - (New feature) Decommission now uses the public API for Access Levels, Access Groups, and Users (Access Users consolidated into the Command Users category).
 - (Bug fix) External API client refreshes its short-lived token on a 401/403 and retries, preventing "failed to authenticate" errors when the token expires mid-run.
 - (Bug fix) Updated Flet from 0.28.3 to 0.85
@@ -40,7 +40,4 @@ v3.3
 
 --- TODO ---
 - Access Areas
-- Incidents
-- Alerts
 - Floorplans
-- Persons of Interest
