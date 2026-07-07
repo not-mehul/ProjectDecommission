@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 # App Info
-APP_VERSION = "3.2"
+APP_VERSION = "3.3"
 GITHUB_REPO = "not-mehul/vCommander"
 
 _INTERNAL_MARKER = Path(__file__).parent / "assets" / "kits.internal.csv"
@@ -114,7 +114,6 @@ ESS_GUEST_ADDRESS = (
     "US",
 )
 ESS_PARTITION_NAME = "VCE Partition"
-ESS_VISITOR_ACCESS_NAME = "VCE Instructor Visitor Access"
 
 VSS_SITE_NAME = "HQ"
 VSS_BULLET_NAME = "HQ Bullet"
@@ -221,16 +220,22 @@ ASSET_CATEGORIES = [
     "Desk Stations",
     "Sensors",
     "Cameras",
+    # Camera-tied watchlist (public API), scanned/deleted alongside Cameras.
+    "Persons of Interest",
     "Command Connectors",
-    # Footage archives (look-back window = constants.SEARCH_DURATION days)
+    # Footage / investigations (Archives look-back window =
+    # constants.SEARCH_DURATION days). Incidents reference footage, so they
+    # precede Archives; Alerts (alert rules) are independent org-level rules.
+    "Incidents",
     "Archives",
+    "Alerts",
     "Guest Sites",
     "Mailroom Sites",
     # Access Control
     "Access Controllers",
     "Floors",
     "Buildings",
-    "Visitor Access",
+    "Visitor Access Templates",
     "Schedules",
     "Access Levels",
     "Access Groups",
@@ -250,7 +255,10 @@ ASSET_CATEGORIES = [
     "Alarm Sites",
     # Sites (camera groups) go last — everything above lives inside one.
     "Sites",
-    # Users & misc
+    # Users & misc — Visits reference Visitors, and both precede Command
+    # Users in the deletion order.
+    "Visits",
+    "Visitors",
     "Command Users",
     # Security entity groups (only non-Verkada-managed are surfaced)
     "Groups",
@@ -267,7 +275,7 @@ CATEGORY_GROUPS = {
         "Access Controllers",
         "Floors",
         "Buildings",
-        "Visitor Access",
+        "Visitor Access Templates",
         "Schedules",
         "Access Levels",
         "Access Groups",
@@ -290,14 +298,16 @@ CATEGORY_GROUPS = {
 }
 
 # Dependency-aware deletion order — edit with care, the sequence matters.
-#   - Command Users first (the running user is excluded at scan time).
+#   - Visits first, then Visitors, then Command Users: a visit references a
+#     visitor, and a visitor is an access user, so tear them down from the
+#     most dependent to the least. The running user is excluded at scan time.
 #   - Intercoms, Doors and Access Station Pros before Cameras: intercoms
 #     and ASPs are also surfaced by the camera endpoint, so deleting them
 #     via their proper endpoints first avoids the camera-side delete
 #     failing on a half-gone device. Doors precede ASPs (door references
 #     ASP as its access controller).
 #   - Rest of Access Control: controllers → floors → buildings → visitor
-#     access → schedules → levels → scenarios → groups. Schedules must
+#     access templates → schedules → levels → scenarios → groups. Schedules must
 #     precede Access Levels (same backing endpoint, different object).
 #     Scenarios (lockdowns) hold release-group references, so they must
 #     be deleted BEFORE Access Groups — otherwise the server rejects
@@ -311,6 +321,9 @@ CATEGORY_GROUPS = {
 #   - Unassigned Devices are informational only — no delete endpoint exists,
 #     so they are intentionally absent here.
 DELETION_ORDER = [
+    # Visits reference Visitors reference Command Users — delete in that order.
+    "Visits",
+    "Visitors",
     "Command Users",
     # Security entity groups — after Command Users, before Doors.
     "Groups",
@@ -322,16 +335,23 @@ DELETION_ORDER = [
     "Desk Stations",
     "Sensors",
     "Cameras",
+    # Persons of Interest are a camera-tied watchlist (public API); delete
+    # alongside Cameras.
+    "Persons of Interest",
     "Command Connectors",
-    # Footage archives — after Command Connectors, before Guest Sites.
+    # Footage / investigations — after Command Connectors, before Guest
+    # Sites. Incidents reference footage, so delete them before Archives;
+    # Alerts (alert rules) are independent.
+    "Incidents",
     "Archives",
+    "Alerts",
     "Guest Sites",
     "Mailroom Sites",
     # Rest of Access Control
     "Access Controllers",
     "Floors",
     "Buildings",
-    "Visitor Access",
+    "Visitor Access Templates",
     "Schedules",
     "Access Levels",
     # Scenarios before Access Groups: a lockdown holds a release-group
@@ -375,7 +395,9 @@ _INTERNAL_GETTERS = {
     "Desk Stations": "get_desk_station",
     "Sensors": "get_sensor",
     "Command Connectors": "get_connector",
+    "Incidents": "get_incident",
     "Archives": "get_archive",
+    "Alerts": "get_alert",
     "Mailroom Sites": "get_mailroom_site",
     # Access Control
     "Doors": "get_door",
@@ -383,8 +405,11 @@ _INTERNAL_GETTERS = {
     "Access Controllers": "get_access_controller",
     "Floors": "get_floor",
     "Buildings": "get_building",
-    "Visitor Access": "get_visitor_access",
+    "Visits": "get_visit",
+    "Visitors": "get_visitor",
+    "Visitor Access Templates": "get_visitor_access_template",
     "Schedules": "get_schedule",
+    "Access Levels": "get_access_level",
     "Scenarios": "get_scenario",
     # Sites (camera groups)
     "Sites": "get_site",
@@ -414,7 +439,9 @@ _INTERNAL_DELETERS = {
     "Sensors": "delete_sensor",
     "Cameras": "delete_camera",
     "Command Connectors": "delete_connector",
+    "Incidents": "delete_incident",
     "Archives": "delete_archive",
+    "Alerts": "delete_alert",
     "Guest Sites": "delete_guest_site",
     "Mailroom Sites": "delete_mailroom_site",
     # Security entity groups
@@ -425,8 +452,11 @@ _INTERNAL_DELETERS = {
     "Access Controllers": "delete_access_controller",
     "Floors": "delete_floor",
     "Buildings": "delete_building",
-    "Visitor Access": "delete_visitor_access",
+    "Visits": "delete_visit",
+    "Visitors": "delete_visitor",
+    "Visitor Access Templates": "delete_visitor_access_template",
     "Schedules": "delete_schedule",
+    "Access Levels": "delete_access_level",
     "Scenarios": "delete_scenario",
     # Sites (camera groups) — _delete_one falls back to rename_site
     # ("<name>-<mm/dd/yy>") when the delete is rejected.
@@ -448,13 +478,13 @@ _INTERNAL_DELETERS = {
 
 _EXTERNAL_GETTERS = {
     "Cameras": "get_cameras",
+    "Persons of Interest": "get_person_of_interest",
     "Guest Sites": "get_guest_sites",
-    "Access Levels": "get_access_levels",
     "Access Groups": "get_access_groups",
 }
 
 _EXTERNAL_DELETERS = {
     "Command Users": "delete_access_user",
-    "Access Levels": "delete_access_level",
+    "Persons of Interest": "delete_persons_of_interest",
     "Access Groups": "delete_access_group",
 }

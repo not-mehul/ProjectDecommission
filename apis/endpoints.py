@@ -569,8 +569,6 @@ ENDPOINTS: dict[str, Endpoint] = {
                 "PUBLIC_API_CAMERA_READ_WRITE",
                 "PUBLIC_API_SENSORS_READ_WRITE",
                 "PUBLIC_API_ACCESS_READ_WRITE",
-                "PUBLIC_API_ACCESS_LOCKDOWN_MANAGEMENT_READ_WRITE",
-                "PUBLIC_API_ACCESS_DOOR_MANAGEMENT_READ_WRITE",
                 "PUBLIC_API_ALARMS_READ_WRITE",
                 "PUBLIC_API_CORE_READ_WRITE",
                 "PUBLIC_API_HELIX_READ_WRITE",
@@ -578,7 +576,6 @@ ENDPOINTS: dict[str, Endpoint] = {
                 "PUBLIC_API_INTERCOM_READ_WRITE",
                 "PUBLIC_API_CAMERA_AUDIO",
             ],
-            "accessible_access_sites": ["<site_id>", ...],
         },
         response={
             "apiKey": "<api_key>",
@@ -610,6 +607,28 @@ ENDPOINTS: dict[str, Endpoint] = {
             "apiKeyName": "<api_key_name>",
         },
     ),
+    "alert.list": Endpoint(
+        subdomain="vlive",
+        method="POST",
+        path="alert_rules/get",
+        payload={"organizationId": "<org_id>", "showSharedAlerts": True, "filters": {}},
+        response=[
+            {
+                "alertRuleId": "<alert_rule_id>",
+                "organizationId": "<org_id>",
+                "name": "<alert_name>",
+                "ownerId": "<owner_id>",
+            },
+        ],
+    ),
+    "alert.delete": Endpoint(
+        subdomain="vlive",
+        method="POST",
+        path="alert_rules/delete",
+        payload={"organizationId": "<org_id>", "filterId": "<alert_rule_id>"},
+        response=None,
+    ),
+    # ── Site ─────────────────────────────────────────────────────────
     # ── Site ─────────────────────────────────────────────────────────
     "site.create": Endpoint(
         method="POST",
@@ -888,8 +907,8 @@ ENDPOINTS: dict[str, Endpoint] = {
             "sortAscending": False,
             "sortBy": "creation_time",
             "filters": {
-                "footageTimeMin": "<epoch time - now>",
-                "footageTimeMax": "<epoch time - SEARCH_DURATION days ago>",
+                "footageTimeMin": "<epoch time - SEARCH_DURATION days ago>",
+                "footageTimeMax": "<epoch time - now>",
             },
         },
         response={
@@ -1329,25 +1348,38 @@ ENDPOINTS: dict[str, Endpoint] = {
             ],
         },
     ),
-    "access_user.list": Endpoint(
+    "floorplan.delete": Endpoint(
+        method="POST",
+        subdomain="vprovision",
+        path="floor_plan/delete",
+        payload={"floorPlanId": "<floor_plan_id>"},
+        response={},
+    ),
+    "visitor.list": Endpoint(
         method="POST",
         subdomain="vcerberus",
         path="access/v2/user/users/search",
         payload={
             "organizationId": "<org_id>",
-            "status": ["access_granted"],
+            "must_queries": [{"bool": {"must": [{"term": {"is_visitor": True}}]}}],
+            "status": [
+                "access_granted",
+            ],
             "status_filter_v2": True,
             "paging": {"pageSize": 99, "sortOrder": ["first_name:asc", "email:asc"]},
         },
         response={
-            "nextPageToken": "WyJaYWNoYXJ5IiwgbnVsbCwgIjg3MDY1OTIxLWVjY2QtNDg5OS1iODg0LTE5ZGViMWUwYTJlNSJd",
-            "total": 1,
             "users": [
-                {"fullName": "<full_name>", "userId": "<user_id>"},
+                {
+                    "email": "<visitor_email>",
+                    "name": "<visitor_name>",
+                    "organizationId": "<org_id>",
+                    "userId": "<visitor_id>",
+                },
             ],
         },
     ),
-    "access_user.delete": Endpoint(
+    "visitor.delete": Endpoint(
         method="POST",
         subdomain=api_region,
         path="users/delete",
@@ -1449,64 +1481,60 @@ ENDPOINTS: dict[str, Endpoint] = {
         payload={},
         response={},
     ),
-    "visitor_access.create": Endpoint(
-        method="POST",
-        subdomain=api_region,
-        path="access/v2/user/visit_types",
-        payload={
-            "cardEnabled": False,
-            "codeEnabled": False,
-            "qrCodeEnabled": False,
-            "lpEnabled": False,
-            "liveLinkEnabled": False,
-            "bleEnabled": False,
-            "remoteUnlockEnabled": False,
-            "faceUnlockEnabled": False,
-            "rollCallEnabled": True,
-            "sites": ["<site_id>"],
-            "doors": [],
-            "updatedSchedule": False,
-            "rollCallSiteIds": ["<site_id>"],
-            "maximumDurationSeconds": 10800,
-            "schedules": [],
-            "directoryId": None,
-            "name": "<visitor_access_name>",
-            "description": "<visitor_access_name>",
-        },
-        response={
-            "name": "<visitor_access_name>",
-            "organizationId": "<org_id>",
-            "visitTypeId": "<visitor_access_id>",
-        },
-    ),
-    "visitor_access.list": Endpoint(
+    "visitor_access_type.list": Endpoint(
         method="GET",
         subdomain=api_region,
-        path="access/v2/user/visit_types",
+        path="access/v3/user/visit_types",
         payload={},
         response={
             "visitTypes": [
                 {
-                    "name": "<visitor_access_name>",
+                    "name": "<visitor_access_type_name>",
                     "organizationId": "<org_id>",
-                    "visitTypeId": "<visitor_access_id>",
+                    "visitTypeId": "<visitor_access_type_id>",
                 }
             ]
         },
     ),
-    "visitor_access.delete": Endpoint(
+    "visitor_access_type.delete": Endpoint(
         method="DELETE",
         subdomain=api_region,
-        path="access/v2/user/visit_types/{visitor_access_id}",
+        path="access/v2/user/visit_types/{visitor_access_type_id}",
         payload={},
         response={
-            "visitTypes": [
+            "deleted": True,
+            "name": "<visitor_access_type_name>",
+            "organizationId": "<org_id>",
+            "visitTypeId": "<visitor_access_type_id>",
+        },
+    ),
+    "visit.list": Endpoint(
+        method="GET",
+        subdomain="vcerberus",
+        path="access/v3/user/visits?page_size=99",
+        payload={},
+        response={
+            "visits": [
                 {
-                    "name": "<visitor_access_name>",
+                    "visitId": "<visit_id>",
+                    "visitorId": "<visitor_id>",
                     "organizationId": "<org_id>",
-                    "visitTypeId": "<visitor_access_id>",
-                }
-            ]
+                    "name": "visit_name",
+                },
+            ],
+        },
+    ),
+    "visit.delete": Endpoint(
+        method="DELETE",
+        subdomain=api_region,
+        path="access/v2/user/visits/{visit_id}",
+        payload={},
+        response={
+            "deleted": True,
+            "name": "<visit_name>",
+            "organizationId": "<org_id>",
+            "visitId": "<visit_id>",
+            "visitorId": "<visitor_id>",
         },
     ),
     "scenario.create": Endpoint(

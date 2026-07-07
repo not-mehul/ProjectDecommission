@@ -1548,7 +1548,8 @@ class VerkadaInternalAPIClient:
         )
 
     # ------------------------------------------------------------------
-    # Security entity groups, access users, and footage archives
+    # Security entity groups, access users, footage archives,
+    # investigation incidents, and alert rules
     # ------------------------------------------------------------------
 
     def get_group(self) -> list[dict[str, Any]]:
@@ -1580,17 +1581,19 @@ class VerkadaInternalAPIClient:
             oid=group_id,
         )
 
-    def get_access_user(self) -> list[dict[str, Any]]:
-        """List access-control users with granted access.
-
-        Single page (pageSize 99); orgs beyond one page would need the
-        `nextPageToken` followed — not needed for lab-scale orgs today.
+    def get_visitor(self) -> list[dict[str, Any]]:
+        """List visitors — access users flagged is_visitor — with granted
+        access. Single page (pageSize 99). Deleted after Visits and before
+        Command Users.
         """
         return self._fetch_list(
-            "access_user.list",
+            "visitor.list",
             response_key="users",
             payload={
                 "organizationId": self.org_id,
+                "must_queries": [
+                    {"bool": {"must": [{"term": {"is_visitor": True}}]}}
+                ],
                 "status": ["access_granted"],
                 "status_filter_v2": True,
                 "paging": {
@@ -1598,25 +1601,43 @@ class VerkadaInternalAPIClient:
                     "sortOrder": ["first_name:asc", "email:asc"],
                 },
             },
-            filter_func=lambda u: u.get("userId") != self.user_id,
-            mapping_func=lambda u: {"id": u["userId"], "name": u.get("fullName")},
+            mapping_func=lambda u: {"id": u["userId"], "name": u.get("name")},
         )
 
-    def delete_access_user(self, user_id: str) -> None:
-        """Delete a single access-control user (endpoint accepts a list)."""
+    def delete_visitor(self, visitor_id: str) -> None:
+        """Delete a single visitor (endpoint accepts a list of userIds)."""
         self._delete(
-            "access_user.delete",
-            json={"organizationId": self.org_id, "userIds": [user_id]},
-            oid=user_id,
+            "visitor.delete",
+            json={"organizationId": self.org_id, "userIds": [visitor_id]},
+            oid=visitor_id,
+        )
+
+    def get_visit(self) -> list[dict[str, Any]]:
+        """List active visits (single page, page_size 99).
+
+        Visits reference visitors, so they are deleted first — before
+        Visitors and Command Users.
+        """
+        return self._fetch_list(
+            "visit.list",
+            response_key="visits",
+            mapping_func=lambda v: {"id": v["visitId"], "name": v.get("name")},
+        )
+
+    def delete_visit(self, visit_id: str) -> None:
+        """Delete a single visit."""
+        self._delete(
+            "visit.delete",
+            path_params={"visit_id": visit_id},
+            oid=visit_id,
         )
 
     def get_archive(self) -> list[dict[str, Any]]:
         """List footage archives within the SEARCH_DURATION-day look-back.
 
-        The archive.list endpoint filters by footage time. Per the endpoint
-        contract, footageTimeMin is 'now' and footageTimeMax is
-        SEARCH_DURATION days ago (both epoch seconds). Single page
-        (pageSize 99).
+        The archive.list endpoint filters by footage time. footageTimeMin is
+        the start of the window (SEARCH_DURATION days ago) and footageTimeMax
+        is the end (now), both epoch seconds. Single page (pageSize 99).
         """
         now = int(time.time())
         window_start = now - SEARCH_DURATION * 86400
@@ -1632,8 +1653,8 @@ class VerkadaInternalAPIClient:
                 "sortAscending": False,
                 "sortBy": "creation_time",
                 "filters": {
-                    "footageTimeMin": now,
-                    "footageTimeMax": window_start,
+                    "footageTimeMin": window_start,
+                    "footageTimeMax": now,
                 },
             },
             mapping_func=lambda a: {"id": a["archiveId"], "name": a.get("archiveId")},
@@ -1645,6 +1666,54 @@ class VerkadaInternalAPIClient:
             "archive.delete",
             json={"archiveIds": [archive_id]},
             oid=archive_id,
+        )
+
+    def get_incident(self) -> list[dict[str, Any]]:
+        """List investigation incidents in the org (single page, limit 99)."""
+        return self._fetch_list(
+            "incident.list",
+            response_key="incidents",
+            payload={"organizationId": self.org_id, "limit": 99},
+            mapping_func=lambda x: {
+                "id": x["incidentId"],
+                "name": x.get("name") or x["incidentId"],
+            },
+        )
+
+    def delete_incident(self, incident_id: str) -> None:
+        """Delete a single investigation incident."""
+        self._delete(
+            "incident.delete",
+            json={"incidentId": incident_id},
+            oid=incident_id,
+        )
+
+    def get_alert(self) -> list[dict[str, Any]]:
+        """List alert rules configured in the org.
+
+        The alert_rules/get endpoint returns a top-level JSON list, which
+        _request wraps under the "items" key.
+        """
+        return self._fetch_list(
+            "alert.list",
+            response_key="items",
+            payload={
+                "organizationId": self.org_id,
+                "showSharedAlerts": True,
+                "filters": {},
+            },
+            mapping_func=lambda x: {
+                "id": x["alertRuleId"],
+                "name": x.get("name") or x["alertRuleId"],
+            },
+        )
+
+    def delete_alert(self, alert_rule_id: str) -> None:
+        """Delete a single alert rule."""
+        self._delete(
+            "alert.delete",
+            json={"organizationId": self.org_id, "filterId": alert_rule_id},
+            oid=alert_rule_id,
         )
 
     def create_building(
@@ -1816,60 +1885,10 @@ class VerkadaInternalAPIClient:
             log_request=f'{{"lprCameraId": "{lpr_camera_id}"}}',
         )
 
-    def create_visitor_access(
-        self, site_id: str, visitor_access_name: str, visitor_access_description: str
-    ) -> str:
-        """
-        Creates a visitor access (visit type) for a site. Returns the
-        visitTypeId.
-
-        Only the dynamic fields (site, name, description) are passed; the
-        endpoint default fills the rest (roll-call on, all unlock methods
-        off, 3-hour max duration).
-        """
-        data, status = self._request(
-            "visitor_access.create",
-            json={
-                "cardEnabled": False,
-                "codeEnabled": False,
-                "qrCodeEnabled": False,
-                "lpEnabled": False,
-                "liveLinkEnabled": False,
-                "bleEnabled": False,
-                "remoteUnlockEnabled": False,
-                "faceUnlockEnabled": False,
-                "rollCallEnabled": True,
-                "sites": [site_id],
-                "doors": [],
-                "updatedSchedule": False,
-                "rollCallSiteIds": [site_id],
-                "maximumDurationSeconds": 10800,
-                "schedules": [],
-                "directoryId": None,
-                "name": visitor_access_name,
-                "description": visitor_access_description,
-            },
-            error_context=(f"Failed to create visitor access '{visitor_access_name}'"),
-            log_request=f'{{"name": "{visitor_access_name}"}}',
-            auto_log=False,
-        )
-        visit_type_id = data.get("visitTypeId")
-        if not visit_type_id:
-            raise ConnectionError(
-                f"Failed to create visitor access '{visitor_access_name}': "
-                "no visitTypeId in response."
-            )
-        self._log(
-            "visitor_access.create",
-            status,
-            log_request=f'{{"name": "{visitor_access_name}"}}',
-            log_response=f'{{"visitTypeId": "{visit_type_id}"}}',
-        )
-        return visit_type_id
-
-    def get_visitor_access(self) -> list[dict[str, Any]]:
+    def get_visitor_access_template(self) -> list[dict[str, Any]]:
+        """List visitor access templates (visit types) in the org."""
         return self._fetch_list(
-            "visitor_access.list",
+            "visitor_access_type.list",
             response_key="visitTypes",
             mapping_func=lambda x: {
                 "id": x["visitTypeId"],
@@ -1877,11 +1896,12 @@ class VerkadaInternalAPIClient:
             },
         )
 
-    def delete_visitor_access(self, visitor_access_id: str) -> None:
+    def delete_visitor_access_template(self, visitor_access_type_id: str) -> None:
+        """Delete a single visitor access template (visit type)."""
         self._delete(
-            "visitor_access.delete",
-            path_params={"visitor_access_id": visitor_access_id},
-            oid=visitor_access_id,
+            "visitor_access_type.delete",
+            path_params={"visitor_access_type_id": visitor_access_type_id},
+            oid=visitor_access_type_id,
         )
 
     # ------------------------------------------------------------------
