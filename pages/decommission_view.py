@@ -271,9 +271,10 @@ class DecommissionView(ToolView):
             # access controllers, alarm sites, and similar can be silently
             # missing from the scan results.
             #
-            # Both elevations are intentionally NOT reverted afterwards —
-            # the user expects to remain elevated for any follow-up admin
-            # work after the decommission completes.
+            # Global Site Admin is reverted at the end of a fully successful
+            # run (see _run_deletions); on a partial or cancelled run it's
+            # left enabled so the user can retry. Access System Admin is not
+            # reverted — the user stays elevated for follow-up admin work.
             await self._run_prep_step(
                 page,
                 loop,
@@ -1193,6 +1194,21 @@ class DecommissionView(ToolView):
                 "assets deleted ===",
                 level="WARN" if deleted_total != grand_total else "INFO",
             )
+
+        # On a fully successful run (nothing failed, not cancelled), revert the
+        # Global Site Admin elevation granted at scan start. Access System Admin
+        # is left in place for any follow-up admin work. A revert failure is
+        # non-fatal — it's logged but doesn't change the decommission result.
+        if not cancelled and failed_total == 0:
+            try:
+                await loop.run_in_executor(
+                    _executor, int_client.disable_global_site_admin
+                )
+                log_system("Disabled Global Site Admin.")
+            except Exception as ex:
+                log_system(
+                    f"Could not disable Global Site Admin: {ex}", level="WARN"
+                )
 
         # Stash the run totals for the report and fill the progress bar.
         self._run_deleted = deleted_total
