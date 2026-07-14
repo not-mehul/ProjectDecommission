@@ -1235,6 +1235,25 @@ class VerkadaInternalAPIClient:
                 log_request=f'{{"cameraId": "{camera_id}"}}',
             )
 
+    def disable_camera_install_mode(self, camera_ids: list[str]) -> None:
+        """
+        Disable Install mode on a list of cameras.
+
+        Caller must pass only PTZ-model camera IDs; Install Mode cannot be
+        disabled on other camera models.
+        """
+        self._request(
+            "camera.create.ptz_install_disable",
+            json={
+                "cameraIds": camera_ids,
+                "params": {
+                    "peripheral-motor-ctrl.disable-pan-tilt": False
+                },
+                "consumable": False
+            },
+        error_context="Failed to disable install mode on PTZ",
+        log_request=f'{{"cameraId": "{camera_ids}"}}')
+
     # ------------------------------------------------------------------
     # Access Control
     # ------------------------------------------------------------------

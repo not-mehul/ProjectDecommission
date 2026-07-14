@@ -861,6 +861,21 @@ ENDPOINTS: dict[str, Endpoint] = {
         },
         response={},
     ),
+    "camera.create.ptz_install_disable": Endpoint(
+        method="POST",
+        subdomain="vdeviceconfig",
+        path="user/camera/config/set",
+        payload={
+            "cameraIds": [
+                "<camera_id>"
+            ],
+            "params": {
+                "peripheral-motor-ctrl.disable-pan-tilt": False
+            },
+            "consumable": False
+        },
+        response={"<camera_id>":{}}
+    ),
     "camera.list": Endpoint(
         method="POST",
         subdomain="vconductor",

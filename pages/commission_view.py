@@ -848,6 +848,14 @@ class CommissionView(ToolView):
             )
             track(ok)
 
+        if ptz_id:
+            ok, _ = await step(
+                "Disabling PTZ Installation Mode",
+                client.disable_camera_install_mode,
+                [ptz_id],
+            )
+            track(ok)
+
         if door_id and bullet_id:
             ok, _ = await step(
                 "Linking LPR camera to door",
