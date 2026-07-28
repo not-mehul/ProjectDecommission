@@ -52,6 +52,7 @@ from constants import (
     ESS_SITE_NAME,
     FIELD_SPACING,
     HQ_TIMEZONE,
+    LICENSE_PLATE_FIELD,
     PRIMARY,
     ROLE_PROPAGATION_SECONDS,
     SECONDARY,
@@ -93,6 +94,12 @@ from utils.executor import _executor
 from utils.export import export_csv
 from utils.session import get_internal_client, set_external_client
 from utils.ui_utils import show_alert, show_toast
+from utils.validation import (
+    SERIAL_DISPLAY_LEN,
+    SERIAL_PLACEHOLDER,
+    format_serial,
+    is_valid_serial,
+)
 
 _ASSETS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets"
@@ -292,16 +299,34 @@ class CommissionView(ToolView):
         self.mount(form_card)
 
     def _make_device_field(self, device_type: str, expand=None) -> ft.TextField:
+        # License Plate holds a plate string rather than a device serial, so
+        # it keeps a plain free-text field — no mask, no length cap.
+        is_serial = device_type != LICENSE_PLATE_FIELD
         field = ft.TextField(
-            label=f"{device_type} S/N",
+            label=f"{device_type} S/N" if is_serial else device_type,
             border_color=BORDER,
             focused_border_color=PRIMARY,
             color=TEXT_PRIMARY,
             label_style=ft.TextStyle(color=TEXT_SECONDARY),
             expand=expand,
+            hint_text=SERIAL_PLACEHOLDER if is_serial else None,
+            max_length=SERIAL_DISPLAY_LEN if is_serial else None,
+            on_change=self._on_serial_change if is_serial else None,
         )
         self._device_fields[device_type] = field
         return field
+
+    def _on_serial_change(self, e) -> None:
+        """
+        Re-apply the serial mask on every keystroke so the field can only
+        ever hold well-formed input: upper-cased, separators inserted, and
+        anything else dropped as it is typed.
+        """
+        field = e.control
+        masked = format_serial(field.value)
+        if masked != field.value:
+            field.value = masked
+            e.page.update()
 
     # ------------------------------------------------------------------
     # Form event handlers
@@ -346,7 +371,12 @@ class CommissionView(ToolView):
     def _fill_from_kit(self, kit_name: str):
         kit_data = self._kits.get(kit_name, {})
         for device_type, field in self._device_fields.items():
-            field.value = kit_data.get(device_type, "")
+            value = kit_data.get(device_type, "")
+            # Kit values go through the same mask, so a serial field always
+            # shows what typing the same characters would have produced.
+            field.value = (
+                value if device_type == LICENSE_PLATE_FIELD else format_serial(value)
+            )
 
     def _add_user_row(self, e):
         row = self._create_user_row()
@@ -416,10 +446,24 @@ class CommissionView(ToolView):
 
         config = TEMPLATE_FIELDS[code]
         for device_type in config["devices"]:
-            if not self._device_serial(device_type):
+            value = self._device_serial(device_type)
+            is_serial = device_type != LICENSE_PLATE_FIELD
+            if not value:
                 show_toast(
                     e.page,
-                    f"Please enter the {device_type} serial number.",
+                    f"Please enter the {device_type} serial number."
+                    if is_serial
+                    else f"Please enter the {device_type}.",
+                    kind="warning",
+                )
+                return False, None
+            # The mask keeps the field well-formed while typing; this
+            # catches the half-typed case (e.g. "A1A1-B2") on submit.
+            if is_serial and not is_valid_serial(value):
+                show_toast(
+                    e.page,
+                    f"{device_type} serial number must look like "
+                    f"{SERIAL_PLACEHOLDER}.",
                     kind="warning",
                 )
                 return False, None

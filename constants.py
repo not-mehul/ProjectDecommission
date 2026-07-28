@@ -189,6 +189,10 @@ ACCESS_GROUP_NAME = "All Participants (Access)"
 # configure_access_controller() in the view.
 HQ_TIMEZONE = "America/Los_Angeles"
 
+# The one device field that is not a device serial number: it holds a
+# license plate string, so it is exempt from the serial mask/validation.
+LICENSE_PLATE_FIELD = "License Plate"
+
 # Template field requirements per template code.
 # NOTE: "AS" was previously defined twice in this dict — Python silently
 # kept only the last definition. Kept the 4-device version since it
