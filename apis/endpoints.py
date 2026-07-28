@@ -250,6 +250,65 @@ _DOOR_EVENT = [
     },
 ]
 
+_MFA_DOOR_EVENT = [
+    {
+        "doorLockState": "ACCESS_CONTROL_2FA",
+        "weekday": 1,
+        "date": None,
+        "startTime": "00:00:00.000",
+        "endTime": "23:59:59.999",
+        "twoPersonRuleEnabled": False
+    },
+    {
+        "doorLockState": "ACCESS_CONTROL_2FA",
+        "weekday": 2,
+        "date": None,
+        "startTime": "00:00:00.000",
+        "endTime": "23:59:59.999",
+        "twoPersonRuleEnabled": False
+    },
+    {
+        "doorLockState": "ACCESS_CONTROL_2FA",
+        "weekday": 3,
+        "date": None,
+        "startTime": "00:00:00.000",
+        "endTime": "23:59:59.999",
+        "twoPersonRuleEnabled": False
+    },
+    {
+        "doorLockState": "ACCESS_CONTROL_2FA",
+        "weekday": 4,
+        "date": None,
+        "startTime": "00:00:00.000",
+        "endTime": "23:59:59.999",
+        "twoPersonRuleEnabled": False
+    },
+    {
+        "doorLockState": "ACCESS_CONTROL_2FA",
+        "weekday": 5,
+        "date": None,
+        "startTime": "00:00:00.000",
+        "endTime": "23:59:59.999",
+        "twoPersonRuleEnabled": False
+    },
+    {
+        "doorLockState": "ACCESS_CONTROL_2FA",
+        "weekday": 6,
+        "date": None,
+        "startTime": "00:00:00.000",
+        "endTime": "23:59:59.999",
+        "twoPersonRuleEnabled": False
+    },
+    {
+        "doorLockState": "ACCESS_CONTROL_2FA",
+        "weekday": 7,
+        "date": None,
+        "startTime": "00:00:00.000",
+        "endTime": "23:59:59.999",
+        "twoPersonRuleEnabled": False
+    },
+]
+
 
 def resolve(endpoint_key: str, path_params: dict | None = None) -> tuple[Endpoint, str]:
     """
@@ -1146,7 +1205,7 @@ ENDPOINTS: dict[str, Endpoint] = {
             "vconductorModelId": "MOODY",
         },
     ),
-    "face_station_pro.set_door_controller": Endpoint(
+    "face_station_pro.door.create": Endpoint(
         method="POST",
         subdomain=api_region,
         path="door/create",
@@ -1261,6 +1320,86 @@ ENDPOINTS: dict[str, Endpoint] = {
             "configs": {"lprCameraId": "<camera_id>"},
             "deviceId": "<door_id>",
         },
+    ),
+    "door.enable_face_unlock": Endpoint(
+        method="POST",
+        subdomain=api_region,
+        path="door/config/set",
+        payload={
+            "doorId": "<door_id>",
+            "action": "grant",
+            "paramName": "face-unlock-enabled",
+            "paramValue": True,
+        },
+        response={
+        "doorConfigParams" : [
+            {
+                "doorId": "<door_id>",
+                "paramName": "face-unlock-enabled",
+                "paramValue": True
+            }
+        ]
+        },
+    ),
+    "door.mfa.card-code": Endpoint(
+        method="POST",
+        subdomain=api_region,
+        path="door/config/set",
+        payload={
+            "doorId": "<door_id>",
+            "action": "grant",
+            "paramName": "mfa-card-code-enabled",
+            "paramValue": True,
+        },
+        response = {
+            "doorConfigParams": [
+                {
+                    "doorId": "<door_id>",
+                    "paramName": "mfa-card-code-enabled",
+                    "paramValue": True
+                }
+            ]
+        }
+    ),
+    "door.mfa.face-card": Endpoint(
+        method="POST",
+        subdomain=api_region,
+        path="door/config/set",
+        payload={
+            "doorId": "<door_id>",
+            "action": "grant",
+            "paramName": "mfa-face-card-enabled",
+            "paramValue": True,
+        },
+        response = {
+            "doorConfigParams": [
+                {
+                    "doorId": "<door_id>",
+                    "paramName": "mfa-face-card-enabled",
+                    "paramValue": True
+                }
+            ]
+        }
+    ),
+    "door.mfa.face-code": Endpoint(
+        method="POST",
+        subdomain=api_region,
+        path="door/config/set",
+        payload={
+            "doorId": "<door_id>",
+            "action": "grant",
+            "paramName": "mfa-face-code-enabled",
+            "paramValue": True,
+        },
+        response = {
+            "doorConfigParams": [
+                {
+                    "doorId": "<door_id>",
+                    "paramName": "mfa-face-code-enabled",
+                    "paramValue": True
+                }
+            ]
+        }
     ),
     "building.create": Endpoint(
         method="POST",
@@ -1607,7 +1746,7 @@ ENDPOINTS: dict[str, Endpoint] = {
         payload={},
         response={},
     ),
-    "schedule.create": Endpoint(
+    "schedule.create.mfa": Endpoint(
         method="PUT",
         subdomain=api_region,
         path="organizations/{org_id}/schedules",
@@ -1615,8 +1754,8 @@ ENDPOINTS: dict[str, Endpoint] = {
             "sitesEnabled": True,
             "schedules": [
                 {
-                    "doors": [],
-                    "events": [],
+                    "doors": ["<door_id>"],
+                    "events": _MFA_DOOR_EVENT,
                     "name": "<schedule_name>",
                     "type": "DOOR",
                     "priority": "SCHEDULE",
