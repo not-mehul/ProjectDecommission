@@ -7,7 +7,7 @@ from apis.endpoints import (
     _DOOR_CREATE_CONFIGS,
     _DOOR_CREATE_IOS,
     _DOOR_EVENT,
-    _FACE_STATION_PRO_DOOR_CREATE_CONFIGS,
+    _ACCESS_STATION_PRO_DOOR_CREATE_CONFIGS,
     _LPR_DOOR_CREATE_CONFIGS,
     _MFA_DOOR_EVENT,
     Address,
@@ -1381,7 +1381,7 @@ class VerkadaInternalAPIClient:
     def get_access_station_pro(self) -> list[dict[str, Any]]:
         """Lists Access Station Pro devices (vconductorModelId == MOODY)."""
         return self._fetch_list(
-            "face_station_pro.list",
+            "access_station_pro.list",
             response_key="accessControllers",
             filter_func=lambda x: (
                 x.get("vconductorModelId") == self._ACCESS_STATION_PRO_MODEL
@@ -1412,7 +1412,7 @@ class VerkadaInternalAPIClient:
         addr = address if isinstance(address, Address) else Address(*address)
         log_req = f'{{"deviceId": "{device_id}"}}'
         data, status = self._request(
-            "face_station_pro.create",
+            "access_station_pro.create",
             json={
                 "deviceId": device_id,
                 "name": station_name,
@@ -1434,7 +1434,7 @@ class VerkadaInternalAPIClient:
                 "no accessControllerId returned."
             )
         self._log(
-            "face_station_pro.create",
+            "access_station_pro.create",
             status,
             log_request=log_req,
             log_response=f'{{"accessControllerId": "{controller_id}"}}',
@@ -1443,7 +1443,7 @@ class VerkadaInternalAPIClient:
 
     def delete_access_station_pro(self, device_id: str) -> None:
         self._delete(
-            "face_station_pro.delete",
+            "access_station_pro.delete",
             json={"deviceId": device_id, "sharding": True},
             oid=device_id,
         )
@@ -2097,11 +2097,11 @@ class VerkadaInternalAPIClient:
         face-unlock-enabled).
         """
         return self._create_door(
-            "face_station_pro.door.create",
+            "access_station_pro.door.create",
             access_controller_id=access_controller_id,
             door_name=door_name,
             floor_id=floor_id,
-            configs=_FACE_STATION_PRO_DOOR_CREATE_CONFIGS,
+            configs=_ACCESS_STATION_PRO_DOOR_CREATE_CONFIGS,
             door_type="moody_as_acu",
         )
 

@@ -40,6 +40,7 @@ from constants import (
     ESS_FLOORS,
     ESS_GUEST_ADDRESS,
     ESS_PANEL_NAME,
+    ESS_ACCESS_STATION_PRO_NAME,
     ESS_SITE_NAME,
     FIELD_SPACING,
     HQ_TIMEZONE,
@@ -609,6 +610,7 @@ class CommissionView(ToolView):
     async def _run_ess_flow(self, step, track, page, client) -> None:
         dome_serial = self._device_serial("Dome")
         panel_serial = self._device_serial("Alarm Panel")
+        access_station_pro_serial = self._device_serial("Access Station Pro")
 
         ok, site_id = await step("Creating site", client.create_site, ESS_SITE_NAME)
         track(ok)
@@ -626,6 +628,14 @@ class CommissionView(ToolView):
             client.add_device,
             ESS_PANEL_NAME,
             panel_serial,
+        )
+        track(ok)
+
+        ok, access_station_pro_id = await step(
+            f"Adding face station pro ({access_station_pro_serial})",
+            client.add_device,
+            ESS_ACCESS_STATION_PRO_NAME,
+            access_station_pro_serial,
         )
         track(ok)
 
@@ -656,6 +666,12 @@ class CommissionView(ToolView):
             "Enabling org features",
             client.enable_org_features,
             self.face_analytics_switch.value,
+        )
+        track(ok)
+
+        ok, _ = await step(
+            "Enabling org face unlock",
+            client.enable_org_face_unlock,
         )
         track(ok)
 
@@ -710,6 +726,24 @@ class CommissionView(ToolView):
                     alarm_system_id,
                 )
                 track(ok)
+
+        if camera_id and site_id:
+            ok, _ = await step(
+                "Configuring camera",
+                client.configure_camera,
+                camera_id,
+                ESS_CAMERA_NAME,
+                site_id,
+                ESS_ADDRESS,
+            )
+            track(ok)
+
+        if access_station_pro_id and site_id:
+            ok, _ = await step(
+                "Configuring Access Station Pro",
+                client.configure_access_station_pro,
+                access_station_pro_id
+            )
 
     async def _run_vssl_flow(self, step, track, page, client, ext_client) -> None:
         bullet_serial = self._device_serial("Bullet")
