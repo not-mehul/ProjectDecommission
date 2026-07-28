@@ -182,8 +182,7 @@ AS_ALARM_ADDRESS = (
 )
 
 # USER INVITE Constants
-COMMAND_GROUP_NAME = "All Participants (Command)"
-ACCESS_GROUP_NAME = "All Participants (Access)"
+COMMAND_GROUP_NAME = "All Participants"
 
 # Default IANA timezone for HQ-located devices. Passed to
 # configure_access_controller() in the view.
