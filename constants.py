@@ -118,7 +118,8 @@ ESS_GUEST_ADDRESS = (
 ESS_PARTITION_NAME = "VCE Partition"
 
 ACSL_SITE_NAME = "Trainers-HQ"
-ACSL_MFA_DOOR_SCHEDULE_NAME = "[DO NOT TOUCH] HQ AF64"
+ACSL_ACCESS_STATION_PRO_NAME = "[DO NOT TOUCH] HQ AF64"
+ACSL_MFA_DOOR_SCHEDULE_NAME = "[DO NOT TOUCH] AF64 2FA"
 ACSL_ACCESS_STATION_PRO_DOOR_NAME = "HQ Door"
 ACSL_BUILDING_NAME = "HQ"
 ACSL_FLOORS = ["G"]
@@ -187,8 +188,8 @@ HQ_TIMEZONE = "America/Los_Angeles"
 # matches the AS commission flow in commission_view.
 TEMPLATE_FIELDS = {
     "ESS": {"devices": ["Dome", "Alarm Panel", "Access Station Pro"], "face_analytics": True},
-    "ACSL": {"devices": ["Access Station Pro"]},
-    "ACSE": {"devices":[]},
+    "ACSL": {"devices": ["Access Station Pro"], "face_analytics": False},
+    "ACSE": {"devices":[], "face_analytics": False},
     "VSSL": {
         "devices": [
             "Bullet",
@@ -212,7 +213,8 @@ TEMPLATE_FIELDS = {
 
 TEMPLATE_DISPLAY_NAMES = {
     "ESS": "Essentials",
-    "ACS": "Access Control Specialist",
+    "ACSL": "Access Control Specialist - Lab",
+    "ACSE": "Access Control Specialist - Exam",
     "VSSL": "Video Security Specialist - Lab",
     "VSSE": "Video Security Specialist - Exam",
     "AS": "Alarms Specialist",
