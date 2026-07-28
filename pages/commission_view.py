@@ -28,6 +28,13 @@ from constants import (
     AS_KEYPAD_NAME,
     AS_PANEL_NAME,
     AS_SITE_NAME,
+    ACSL_MFA_DOOR_SCHEDULE_NAME,
+    ACSL_ACCESS_STATION_PRO_DOOR_NAME,
+    ACSL_ACCESS_STATION_PRO_NAME,
+    ACSL_BUILDING_NAME,
+    ACSL_FLOORS,
+    ACSL_ADDRESS,
+    ACSL_SITE_NAME,
     BORDER,
     BUILDING_PROVISION_SECONDS,
     CARD_PADDING,
@@ -41,6 +48,7 @@ from constants import (
     ESS_GUEST_ADDRESS,
     ESS_PANEL_NAME,
     ESS_ACCESS_STATION_PRO_NAME,
+    ESS_ACCESS_STATION_PRO_DOOR_NAME,
     ESS_SITE_NAME,
     FIELD_SPACING,
     HQ_TIMEZONE,
@@ -573,7 +581,7 @@ class CommissionView(ToolView):
             all_success = ok_value and all_success
 
         # ── Common prelude ──
-        if code in ("ESS", "ACS", "VSSL", "VSSE", "AS"):
+        if code in ("ESS", "ACSL", "ACSE", "VSSL", "VSSE", "AS"):
             ok, _ = await step("Enabling custom roles", client.enable_custom_roles)
             track(ok)
             self._progress_note(page, "Waiting for roles to propagate...")
@@ -586,7 +594,9 @@ class CommissionView(ToolView):
         # ── Per-template flows ──
         if code == "ESS":
             await self._run_ess_flow(step, track, page, client)
-        elif code == "ACS":
+        elif code == "ACSL":
+            await self._run_acsl_flow(step, track, page, client)
+        elif code == "ACSE":
             # No additional steps beyond the prelude.
             pass
         elif code == "VSSL":
@@ -639,7 +649,7 @@ class CommissionView(ToolView):
         )
         track(ok)
 
-        ok, _ = await step(
+        ok, floor_id = await step(
             "Creating building",
             client.create_building,
             ESS_BUILDING_NAME,
@@ -727,23 +737,119 @@ class CommissionView(ToolView):
                 )
                 track(ok)
 
-        if camera_id and site_id:
-            ok, _ = await step(
-                "Configuring camera",
-                client.configure_camera,
-                camera_id,
-                ESS_CAMERA_NAME,
-                site_id,
-                ESS_ADDRESS,
-            )
-            track(ok)
-
         if access_station_pro_id and site_id:
-            ok, _ = await step(
+            ok, access_station_pro_controller_id = await step(
                 "Configuring Access Station Pro",
                 client.configure_access_station_pro,
-                access_station_pro_id
+                access_station_pro_id,
+                ESS_ACCESS_STATION_PRO_NAME,
+                site_id,
+                ESS_ADDRESS
             )
+            track(ok)
+            door_id = None
+            if access_station_pro_controller_id:
+                ok, door_id = await step(
+                    "Creating door",
+                    client.create_access_station_pro_door,
+                    access_station_pro_controller_id,
+                    ESS_ACCESS_STATION_PRO_DOOR_NAME,
+                    floor_id,
+                )
+            track(ok)
+            if door_id and access_station_pro_controller_id:
+                ok, _ = await step(
+                    "Enabling Face Unlock on Door",
+                    client.enable_door_face_unlock,
+                    door_id,
+                )
+                track(ok)
+
+    async def _run_acsl_flow(self, step, track, page, client) -> None:
+        access_station_pro_serial = self._device_serial("Access Station Pro")
+
+        ok, site_id = await step("Creating site", client.create_site, ACSL_SITE_NAME)
+        track(ok)
+
+        ok, access_station_pro_id = await step(
+            f"Adding face station pro ({access_station_pro_serial})",
+            client.add_device,
+            ACSL_ACCESS_STATION_PRO_NAME,
+            access_station_pro_serial,
+        )
+        track(ok)
+
+        ok, floor_id = await step(
+            "Creating building",
+            client.create_building,
+            ACSL_BUILDING_NAME,
+            ACSL_ADDRESS,
+            ACSL_FLOORS,
+        )
+        track(ok)
+
+        ok, _ = await step(
+            "Enabling org face unlock",
+            client.enable_org_face_unlock,
+        )
+        track(ok)
+
+        if access_station_pro_id and site_id:
+            ok, access_station_pro_controller_id = await step(
+                "Configuring Access Station Pro",
+                client.configure_access_station_pro,
+                access_station_pro_id,
+                ACSL_ACCESS_STATION_PRO_NAME,
+                site_id,
+                ACSL_ADDRESS
+            )
+            track(ok)
+            door_id = None
+            if access_station_pro_controller_id:
+                ok, door_id = await step(
+                    "Creating door",
+                    client.create_access_station_pro_door,
+                    access_station_pro_controller_id,
+                    ACSL_ACCESS_STATION_PRO_DOOR_NAME,
+                    floor_id,
+                )
+            track(ok)
+            if door_id and access_station_pro_controller_id:
+                ok, _ = await step(
+                    "Enabling Face Unlock on Door",
+                    client.enable_door_face_unlock,
+                    door_id,
+                )
+                track(ok)
+
+                ok, _ = await step(
+                    "Enabling Card + Code",
+                    client.enable_door_mfa_card_code,
+                    door_id,
+                )
+                track(ok)
+
+                ok, _ = await step(
+                    "Enabling Face + Card",
+                    client.enable_door_mfa_face_card,
+                    door_id,
+                )
+                track(ok)
+
+                ok, _ = await step(
+                    "Enabling Face + Code",
+                    client.enable_door_mfa_face_code,
+                    door_id,
+                )
+                track(ok)
+
+                ok, _ = await step(
+                    "Creating MFA Door Schedule",
+                    client.enable_door_mfa_card_code,
+                    door_id,
+                    ACSL_MFA_DOOR_SCHEDULE_NAME,
+                )
+                track(ok)
 
     async def _run_vssl_flow(self, step, track, page, client, ext_client) -> None:
         bullet_serial = self._device_serial("Bullet")

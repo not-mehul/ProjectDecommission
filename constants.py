@@ -91,6 +91,7 @@ ESS_SITE_NAME = "HQ"
 ESS_CAMERA_NAME = "HQ CD62"
 ESS_PANEL_NAME = "HQ Alarm Panel"
 ESS_ACCESS_STATION_PRO_NAME = "HQ AF64"
+ESS_ACCESS_STATION_PRO_DOOR_NAME = "HQ Door"
 ESS_BUILDING_NAME = "HQ"
 ESS_FLOORS = ["G"]
 ESS_ADDRESS = (
@@ -115,6 +116,17 @@ ESS_GUEST_ADDRESS = (
     "US",
 )
 ESS_PARTITION_NAME = "VCE Partition"
+
+ACSL_SITE_NAME = "Trainers-HQ"
+ACSL_MFA_DOOR_SCHEDULE_NAME = "[DO NOT TOUCH] HQ AF64"
+ACSL_ACCESS_STATION_PRO_DOOR_NAME = "HQ Door"
+ACSL_BUILDING_NAME = "HQ"
+ACSL_FLOORS = ["G"]
+ACSL_ADDRESS = (
+    "406 E 3rd Ave, San Mateo, CA 94401, USA",
+    37.56613979999999,
+    -122.3210929,
+)
 
 VSS_SITE_NAME = "HQ"
 VSS_BULLET_NAME = "HQ Bullet"
@@ -174,8 +186,9 @@ HQ_TIMEZONE = "America/Los_Angeles"
 # kept only the last definition. Kept the 4-device version since it
 # matches the AS commission flow in commission_view.
 TEMPLATE_FIELDS = {
-    "ESS": {"devices": ["Dome", "Alarm Panel"], "face_analytics": True},
-    "ACS": {"devices": [], "face_analytics": False},
+    "ESS": {"devices": ["Dome", "Alarm Panel", "Access Station Pro"], "face_analytics": True},
+    "ACSL": {"devices": ["Access Station Pro"]},
+    "ACSE": {"devices":[]},
     "VSSL": {
         "devices": [
             "Bullet",
