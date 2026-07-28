@@ -310,6 +310,15 @@ class UsersView(ToolView):
         )
         self._invite_btn = primary_button("Invite All", on_click=self._on_invite_all)
 
+        # Gates the group step in _run_invites. On by default: the common
+        # case is that every invited participant belongs in the group.
+        self._add_to_group_switch = ft.Switch(
+            label=f" Add invited users to '{COMMAND_GROUP_NAME}'",
+            value=True,
+            active_color=PRIMARY,
+            label_text_style=ft.TextStyle(color=TEXT_PRIMARY),
+        )
+
         return ft.Column(
             [
                 section_header(
@@ -333,6 +342,8 @@ class UsersView(ToolView):
                 ft.Divider(color=BORDER, height=1),
                 self._participants_column,
                 add_btn,
+                ft.Container(height=10),
+                self._add_to_group_switch,
                 ft.Container(height=10),
                 self._invite_btn,
             ],
@@ -478,25 +489,27 @@ class UsersView(ToolView):
 
         # Group membership runs once for the whole batch — add_users_to_group
         # takes the id list, so one call covers everyone invited this run.
-        if invited_user_ids:
-            await self._add_invited_to_command_group(
-                page, loop, client, invited_user_ids
-            )
-        elif success_count:
-            self._invite_progress.controls.append(
-                ft.Row(
-                    [
-                        ft.Icon(ft.Icons.WARNING_ROUNDED, color=WARNING, size=18),
-                        ft.Text(
-                            f"Invited users carried no user id — skipped "
-                            f"'{COMMAND_GROUP_NAME}'.",
-                            color=WARNING,
-                            size=13,
-                        ),
-                    ],
-                    spacing=10,
+        # Skipped entirely when the Step 3 toggle is off.
+        if self._add_to_group_switch.value:
+            if invited_user_ids:
+                await self._add_invited_to_command_group(
+                    page, loop, client, invited_user_ids
                 )
-            )
+            elif success_count:
+                self._invite_progress.controls.append(
+                    ft.Row(
+                        [
+                            ft.Icon(ft.Icons.WARNING_ROUNDED, color=WARNING, size=18),
+                            ft.Text(
+                                f"Invited users carried no user id — skipped "
+                                f"'{COMMAND_GROUP_NAME}'.",
+                                color=WARNING,
+                                size=13,
+                            ),
+                        ],
+                        spacing=10,
+                    )
+                )
 
         if total == 0:
             summary = "No participants with an email were invited."
