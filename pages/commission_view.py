@@ -642,7 +642,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, access_station_pro_id = await step(
-            f"Adding face station pro ({access_station_pro_serial})",
+            f"Adding access station pro ({access_station_pro_serial})",
             client.add_device,
             ESS_ACCESS_STATION_PRO_NAME,
             access_station_pro_serial,
@@ -747,6 +747,7 @@ class CommissionView(ToolView):
                 ESS_ADDRESS
             )
             track(ok)
+
             door_id = None
             if access_station_pro_controller_id:
                 ok, door_id = await step(
@@ -756,7 +757,8 @@ class CommissionView(ToolView):
                     ESS_ACCESS_STATION_PRO_DOOR_NAME,
                     floor_id,
                 )
-            track(ok)
+                track(ok)
+
             if door_id and access_station_pro_controller_id:
                 ok, _ = await step(
                     "Enabling Face Unlock on Door",
@@ -772,7 +774,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, access_station_pro_id = await step(
-            f"Adding face station pro ({access_station_pro_serial})",
+            f"Adding access station pro ({access_station_pro_serial})",
             client.add_device,
             ACSL_ACCESS_STATION_PRO_NAME,
             access_station_pro_serial,
@@ -813,7 +815,8 @@ class CommissionView(ToolView):
                     ACSL_ACCESS_STATION_PRO_DOOR_NAME,
                     floor_id,
                 )
-            track(ok)
+                track(ok)
+
             if door_id and access_station_pro_controller_id:
                 ok, _ = await step(
                     "Enabling Face Unlock on Door",
@@ -845,7 +848,7 @@ class CommissionView(ToolView):
 
                 ok, _ = await step(
                     "Creating MFA Door Schedule",
-                    client.enable_door_mfa_card_code,
+                    client.create_mfa_schedule,
                     door_id,
                     ACSL_MFA_DOOR_SCHEDULE_NAME,
                 )
