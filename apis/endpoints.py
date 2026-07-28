@@ -821,6 +821,37 @@ ENDPOINTS: dict[str, Endpoint] = {
             "userId": "<user_id>",
         },
     ),
+    "group.create": Endpoint(
+        method="POST",
+        subdomain="vauth",
+        path="security_entity_group/create",
+        payload={
+            "organizationId": "<org_id>",
+            "name": "<group_name>"
+        },
+        response={
+            "securityEntityGroup": [
+                {
+                    "entityGroupId": "<group_id>",
+                    "name": "<group_name>",
+                    "organizationId": "<org_id>",
+                }
+            ]
+        }
+    ),
+    "group.add_members": Endpoint(
+        method="POST",
+        subdomain="vauth",
+        path="security_entity_group/members/add",
+        payload={
+            "securityEntityGroupId": "<group_id>",
+            "securityEntityIds": [
+                "<user_id>",
+                "<user_id>"
+            ]
+        },
+        response=None
+    ),
     "group.list": Endpoint(
         method="POST",
         subdomain="vauth",
