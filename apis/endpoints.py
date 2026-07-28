@@ -98,7 +98,7 @@ _LPR_DOOR_CREATE_CONFIGS = [
     {"paramName": "replace-ios-with-security-relay", "paramValue": "False"},
 ]
 
-_FACE_STATION_PRO_DOOR_CREATE_CONFIGS = [
+_ACCESS_STATION_PRO_DOOR_CREATE_CONFIGS = [
     {"paramName": "default-unlock-time", "paramValue": "10"},
     {"paramName": "assa-extended-unlock-time", "paramValue": "20"},
     {"paramName": "has-door-sensor", "paramValue": "True"},
@@ -1216,7 +1216,7 @@ ENDPOINTS: dict[str, Endpoint] = {
         payload={"deviceId": "<access_controller_id>", "sharding": True},
         response={},
     ),
-    "face_station_pro.create": Endpoint(
+    "access_station_pro.create": Endpoint(
         method="POST",
         subdomain="vcerberus",
         path="access/v2/user/access_device/setup",
@@ -1228,15 +1228,15 @@ ENDPOINTS: dict[str, Endpoint] = {
         },
         response={
             "accessControllerId": "<access_controller_id>",
-            "deviceId": "<face_station_pro_id>",
-            "name": "<face_station_pro_name>",
+            "deviceId": "<access_station_pro_id>",
+            "name": "<access_station_pro_name>",
             "organizationId": "<org_id>",
             "serialNumber": "<serial_number>",
             "timezone": "<timezone>",
             "vconductorModelId": "MOODY",
         },
     ),
-    "face_station_pro.door.create": Endpoint(
+    "access_station_pro.door.create": Endpoint(
         method="POST",
         subdomain=api_region,
         path="door/create",
@@ -1245,26 +1245,26 @@ ENDPOINTS: dict[str, Endpoint] = {
             "floorId": "<floor_id>",
             "accessControllerId": "<access_controller_id>",
             "deviceIos": _DOOR_CREATE_IOS,
-            "configs": _FACE_STATION_PRO_DOOR_CREATE_CONFIGS,
+            "configs": _ACCESS_STATION_PRO_DOOR_CREATE_CONFIGS,
             "doorType": "moody_as_acu",
         },
         response={
             "doors": [
                 {
-                    "accessControllerId": "<face_station_pro_id>",
+                    "accessControllerId": "<access_station_pro_id>",
                     "doorId": "<door_id>",
                     "floorId": "<floor_id>",
                     "name": "<door_name>",
                     "nearbyCameras": [
                         {
-                            "cameraId": "<face_station_pro_id>",
+                            "cameraId": "<access_station_pro_id>",
                         }
                     ],
                 }
             ]
         },
     ),
-    "face_station_pro.list": Endpoint(
+    "access_station_pro.list": Endpoint(
         method="GET",
         subdomain=api_region,
         path="access/v3/user/access_controllers",
@@ -1281,11 +1281,11 @@ ENDPOINTS: dict[str, Endpoint] = {
             ]
         },
     ),
-    "face_station_pro.delete": Endpoint(
+    "access_station_pro.delete": Endpoint(
         method="POST",
         subdomain="vcerberus",
         path="access_device/decommission",
-        payload={"deviceId": "<face_station_pro_id>", "sharding": True},
+        payload={"deviceId": "<access_station_pro_id>", "sharding": True},
         response={},
     ),
     "door.create": Endpoint(
