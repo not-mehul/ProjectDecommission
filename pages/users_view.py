@@ -18,6 +18,7 @@ from constants import (
     BORDER,
     CARD_PADDING,
     CARD_SHADOW,
+    COMMAND_GROUP_NAME,
     ERROR,
     FIELD_SPACING,
     PRIMARY,
@@ -450,6 +451,7 @@ class UsersView(ToolView):
         success_count = 0
         total = 0
         self._invited_records = []
+        invited_user_ids: list[str] = []
 
         for control in self._participants_column.controls:
             if not isinstance(control, ft.Row):
@@ -465,10 +467,36 @@ class UsersView(ToolView):
                 continue
             total += 1
 
-            ok = await self._run_invite_step(page, loop, client, first, last, email_val)
+            ok, user_id = await self._run_invite_step(
+                page, loop, client, first, last, email_val
+            )
             if ok:
                 success_count += 1
                 self._invited_records.append((first, last, email_val))
+                if user_id:
+                    invited_user_ids.append(user_id)
+
+        # Group membership runs once for the whole batch — add_users_to_group
+        # takes the id list, so one call covers everyone invited this run.
+        if invited_user_ids:
+            await self._add_invited_to_command_group(
+                page, loop, client, invited_user_ids
+            )
+        elif success_count:
+            self._invite_progress.controls.append(
+                ft.Row(
+                    [
+                        ft.Icon(ft.Icons.WARNING_ROUNDED, color=WARNING, size=18),
+                        ft.Text(
+                            f"Invited users carried no user id — skipped "
+                            f"'{COMMAND_GROUP_NAME}'.",
+                            color=WARNING,
+                            size=13,
+                        ),
+                    ],
+                    spacing=10,
+                )
+            )
 
         if total == 0:
             summary = "No participants with an email were invited."
@@ -487,41 +515,122 @@ class UsersView(ToolView):
         self._done_btn.visible = True
         page.update()
 
-    async def _run_invite_step(
-        self, page, loop, client, first: str, last: str, email_val: str
-    ) -> bool:
-        """Append a progress row, attempt the invite, and update the row.
-        Returns True on success."""
+    async def _progress_step(
+        self,
+        page,
+        loop,
+        label: str,
+        success_label: str,
+        fail_label: str,
+        fn,
+        *args,
+    ) -> tuple[bool, object]:
+        """
+        Append a spinner row, run `fn` in the executor, then swap the
+        spinner for a check or error icon.
+
+        Returns (ok, result); result is None when the call raised.
+        """
         step_icon = ft.ProgressRing(
             width=16, height=16, stroke_width=2, color=TEXT_SECONDARY
         )
-        step_text = ft.Text(
-            f"Inviting {first} {last} ({email_val})...",
-            color=TEXT_SECONDARY,
-            size=13,
-        )
+        step_text = ft.Text(f"{label}...", color=TEXT_SECONDARY, size=13)
         step_row = ft.Row([step_icon, step_text], spacing=10)
         self._invite_progress.controls.append(step_row)
         page.update()
         await asyncio.sleep(0)
 
         try:
-            await loop.run_in_executor(
-                _executor, client.invite_user, email_val, first, last
-            )
+            result = await loop.run_in_executor(_executor, fn, *args)
             step_row.controls[0] = ft.Icon(
                 ft.Icons.CHECK_CIRCLE, color=SECONDARY, size=18
             )
-            step_text.value = f"Invited {first} {last} ({email_val})"
+            step_text.value = success_label
             step_text.color = SECONDARY
             page.update()
-            return True
+            return True, result
         except Exception as ex:
             step_row.controls[0] = ft.Icon(ft.Icons.ERROR, color=ERROR, size=18)
-            step_text.value = f"Failed: {first} {last} — {ex}"
+            step_text.value = f"{fail_label} — {ex}"
             step_text.color = ERROR
             page.update()
+            return False, None
+
+    async def _run_invite_step(
+        self, page, loop, client, first: str, last: str, email_val: str
+    ) -> tuple[bool, str | None]:
+        """Append a progress row, attempt the invite, and update the row.
+
+        Returns (ok, user_id). user_id is None when the invite failed, or
+        when it succeeded but the response carried no user details — such a
+        user cannot be added to a group here.
+        """
+        who = f"{first} {last}".strip()
+        ok, result = await self._progress_step(
+            page,
+            loop,
+            f"Inviting {who} ({email_val})",
+            f"Invited {who} ({email_val})",
+            f"Failed: {who}",
+            client.invite_user,
+            email_val,
+            first,
+            last,
+        )
+        return ok, (result or {}).get("user_id")
+
+    async def _add_invited_to_command_group(
+        self, page, loop, client, user_ids: list[str]
+    ) -> bool:
+        """
+        Add the freshly invited users to the shared Command group, creating
+        the group the first time it is needed.
+
+        Reuses an existing group by name so repeated invite runs collect
+        into one group. Note that get_group() hides Verkada-managed groups,
+        so only a group created by this tool (or by hand) is ever matched.
+        """
+        ok, groups = await self._progress_step(
+            page,
+            loop,
+            f"Looking up group '{COMMAND_GROUP_NAME}'",
+            f"Looked up group '{COMMAND_GROUP_NAME}'",
+            "Failed: group lookup",
+            client.get_group,
+        )
+        if not ok:
             return False
+
+        group_id = next(
+            (g["id"] for g in groups or [] if g.get("name") == COMMAND_GROUP_NAME),
+            None,
+        )
+        if not group_id:
+            ok, group_id = await self._progress_step(
+                page,
+                loop,
+                f"Creating group '{COMMAND_GROUP_NAME}'",
+                f"Created group '{COMMAND_GROUP_NAME}'",
+                f"Failed: creating group '{COMMAND_GROUP_NAME}'",
+                client.create_group,
+                COMMAND_GROUP_NAME,
+            )
+            if not ok:
+                return False
+
+        count = len(user_ids)
+        plural = "" if count == 1 else "s"
+        ok, _ = await self._progress_step(
+            page,
+            loop,
+            f"Adding {count} user{plural} to '{COMMAND_GROUP_NAME}'",
+            f"Added {count} user{plural} to '{COMMAND_GROUP_NAME}'",
+            f"Failed: adding users to '{COMMAND_GROUP_NAME}'",
+            client.add_users_to_group,
+            user_ids,
+            group_id,
+        )
+        return ok
 
     def _on_copy_invited(self, e):
         """Copy the successfully-invited participants to the clipboard as a
