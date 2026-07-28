@@ -167,8 +167,9 @@ Spins up a populated org from a template.
 1. **Pick a template** from the dropdown:
    | Code | Display Name | Devices Created |
    |---|---|---|
-   | `ESS` | Essentials | Dome, Alarm Panel |
-   | `ACS` | Access Control Specialist | Disable Global Site Admin Only |
+   | `ESS` | Essentials | Dome, Alarm Panel, Access Station Pro |
+   | `ACSL` | Access Control Specialist - Lab | Access Station Pro |
+   | `ACSE` | Access Control Specialist - Exam | Disable Global Site Admin Only |
    | `VSSL` | Video Security Specialist – Lab | Bullet, PTZ, Command Connector, Access Controller, License Plate |
    | `VSSE` | Video Security Specialist – Exam | Dome, Fisheye, Bullet |
    | `AS` | Alarms Specialist | Dome, Access Controller, Alarm Panel, Keypad |

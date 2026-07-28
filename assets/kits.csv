@@ -1,10 +1,10 @@
 Kit Name,Device Type,Serial Number
-Kit X,Dome,DOME_SN
-Kit X,Fisheye,FISHEYE_SN
-Kit X,Bullet,BULLET_SN
-Kit X,Access Controller,CONTROLLER_SN
-Kit X,Access Station Pro,ACCESS_STATION_PRO_SN
-Kit X,Alarm Panel,PANEL_SN
-Kit X,Keypad,KEYPAD_SN
-Kit X,Command Connector,CONNECTOR_SN
-Kit X,PTZ,PTZ_SN
+Kit X,Dome,XXXX-XXXX-XXXX
+Kit X,Fisheye,XXXX-XXXX-XXXX
+Kit X,Bullet,XXXX-XXXX-XXXX
+Kit X,Access Controller,XXXX-XXXX-XXXX
+Kit X,Access Station Pro,XXXX-XXXX-XXXX
+Kit X,Alarm Panel,XXXX-XXXX-XXXX
+Kit X,Keypad,XXXX-XXXX-XXXX
+Kit X,Command Connector,XXXX-XXXX-XXXX
+Kit X,PTZ,XXXX-XXXX-XXXX
