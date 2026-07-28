@@ -32,6 +32,14 @@ v3.3
 - (Bug fix) Updated Flet from 0.28.3 to 0.85
 - (Bug fix) Updated SMS Authenticator API to handle text messages correctly.
 
+v3.4
+- (New Feature) Incorporated AF64 Commissioning steps into ESS and ACSL.
+- (New Feature) Split ACS into ACSL (Access Control Specialist - Lab) and ACSE (Access Control Specialist - Exam). ACSL incorporates the AF64 Commissioning and setup. ACSE inherits the original ACS flow.
+- (New Feature) When adding users using the Invite Tool, by default users are also added to a 'All Participants' group. Can be toggled off during review.
+- (New Feature) Input Validation for S/N, so it automatically fills in the correct XXXX-XXXX-XXXX format.
+- (New Feature) Decommission the Access Controller after creating the Access Level to prevent accidental commissioning or errors if not paying attention to the tool's summary during setup.
+- (New Feature) Several new endpoints added: group.create, group.add_members, org.allow_face_unlock, access_station_pro.create, access_station_pro.door.create, door.enable_face_unlock, door.mfa.card-code, door.mfa.face-card, door.mfa.face-code, schedule.create.mfa
+
 --- NEWS ---
 - When the Alarm is triggered, you will not be able to delete an Alarm Site. It needs to be resolved to delete an alarm site.
 

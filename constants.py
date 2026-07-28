@@ -86,7 +86,7 @@ from theme import CARD_SHADOW  # noqa: E402,F401
 #   - configure_camera / configure_connector (3-tuple: label, lat, lon)
 # These calls unpack tuples into the matching NamedTuple internally.
 
-# ESS commission constants — all fixed for the HQ reference setup
+# ESS commission constants
 ESS_SITE_NAME = "HQ"
 ESS_CAMERA_NAME = "HQ CD62"
 ESS_PANEL_NAME = "HQ Alarm Panel"
@@ -117,8 +117,10 @@ ESS_GUEST_ADDRESS = (
 )
 ESS_PARTITION_NAME = "VCE Partition"
 
+# ACSL commission constants
 ACSL_SITE_NAME = "Trainers-HQ"
-ACSL_MFA_DOOR_SCHEDULE_NAME = "[DO NOT TOUCH] HQ AF64"
+ACSL_ACCESS_STATION_PRO_NAME = "[DO NOT TOUCH] HQ AF64"
+ACSL_MFA_DOOR_SCHEDULE_NAME = "[DO NOT TOUCH] AF64 2FA"
 ACSL_ACCESS_STATION_PRO_DOOR_NAME = "HQ Door"
 ACSL_BUILDING_NAME = "HQ"
 ACSL_FLOORS = ["G"]
@@ -128,6 +130,7 @@ ACSL_ADDRESS = (
     -122.3210929,
 )
 
+# VSSL commission constants
 VSS_SITE_NAME = "HQ"
 VSS_BULLET_NAME = "HQ Bullet"
 VSS_CONTROLLER_NAME = "HQ Controller"
@@ -144,11 +147,13 @@ VSS_DOOR_NAME = "Garage Door"
 VSS_ACCESS_GROUP_NAME = "VCE Access Group"
 VSS_ACCESS_LEVEL_NAME = "VCE Access Level"
 
+# VSSE commission constants
 VSS_EXAM_SITE_NAME = "Satellite Office"
 VSS_EXAM_BULLET_NAME = "Bullet"
 VSS_EXAM_FISHEYE_NAME = "Fisheye"
 VSS_EXAM_DOME_NAME = "Dome"
 
+# AS commission constants
 AS_SITE_NAME = "HQ"
 AS_DOME_NAME = "HQ CD62"
 AS_CONTROLLER_NAME = "HQ Controller [DO NOT TOUCH]"
@@ -158,7 +163,6 @@ AS_DOOR_NAME = "HQ Door"
 AS_ACCESS_LEVEL_NAME = "HQ 24/7 Access"
 AS_INSTRUCTOR_KEYCODE_NAME = "VCE Instructor Keycode"
 AS_INSTRUCTOR_KEYCODE = "123456"
-
 AS_BUILDING_NAME = "HQ"
 AS_FLOORS = ["G"]
 AS_ADDRESS = (
@@ -177,9 +181,16 @@ AS_ALARM_ADDRESS = (
     "94401",
 )
 
+# USER INVITE Constants
+COMMAND_GROUP_NAME = "All Participants"
+
 # Default IANA timezone for HQ-located devices. Passed to
 # configure_access_controller() in the view.
 HQ_TIMEZONE = "America/Los_Angeles"
+
+# The one device field that is not a device serial number: it holds a
+# license plate string, so it is exempt from the serial mask/validation.
+LICENSE_PLATE_FIELD = "License Plate"
 
 # Template field requirements per template code.
 # NOTE: "AS" was previously defined twice in this dict — Python silently
@@ -187,8 +198,8 @@ HQ_TIMEZONE = "America/Los_Angeles"
 # matches the AS commission flow in commission_view.
 TEMPLATE_FIELDS = {
     "ESS": {"devices": ["Dome", "Alarm Panel", "Access Station Pro"], "face_analytics": True},
-    "ACSL": {"devices": ["Access Station Pro"]},
-    "ACSE": {"devices":[]},
+    "ACSL": {"devices": ["Access Station Pro"], "face_analytics": False},
+    "ACSE": {"devices":[], "face_analytics": False},
     "VSSL": {
         "devices": [
             "Bullet",
@@ -212,7 +223,8 @@ TEMPLATE_FIELDS = {
 
 TEMPLATE_DISPLAY_NAMES = {
     "ESS": "Essentials",
-    "ACS": "Access Control Specialist",
+    "ACSL": "Access Control Specialist - Lab",
+    "ACSE": "Access Control Specialist - Exam",
     "VSSL": "Video Security Specialist - Lab",
     "VSSE": "Video Security Specialist - Exam",
     "AS": "Alarms Specialist",
