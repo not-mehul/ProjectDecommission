@@ -626,12 +626,12 @@ class CommissionView(ToolView):
 
         # ── Common prelude ──
         if code in ("ESS", "ACSL", "ACSE", "VSSL", "VSSE", "AS"):
-            ok, _ = await step("Enabling custom roles", client.enable_custom_roles)
+            ok, _ = await step("Enabling Custom Roles", client.enable_custom_roles)
             track(ok)
             self._progress_note(page, "Waiting for roles to propagate...")
             await asyncio.sleep(ROLE_PROPAGATION_SECONDS)
             ok, _ = await step(
-                "Disabling global site admin", client.disable_global_site_admin
+                "Disabling Global Site Admin", client.disable_global_site_admin
             )
             track(ok)
 
@@ -666,11 +666,11 @@ class CommissionView(ToolView):
         panel_serial = self._device_serial("Alarm Panel")
         access_station_pro_serial = self._device_serial("Access Station Pro")
 
-        ok, site_id = await step("Creating site", client.create_site, ESS_SITE_NAME)
+        ok, site_id = await step("Creating Site", client.create_site, ESS_SITE_NAME)
         track(ok)
 
         ok, camera_id = await step(
-            f"Adding camera ({dome_serial})",
+            f"Adding Camera ({dome_serial})",
             client.add_device,
             ESS_CAMERA_NAME,
             dome_serial,
@@ -678,7 +678,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, panel_id = await step(
-            f"Adding alarm panel ({panel_serial})",
+            f"Adding Alarm Panel ({panel_serial})",
             client.add_device,
             ESS_PANEL_NAME,
             panel_serial,
@@ -686,7 +686,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, access_station_pro_id = await step(
-            f"Adding access station pro ({access_station_pro_serial})",
+            f"Adding Access Station Pro ({access_station_pro_serial})",
             client.add_device,
             ESS_ACCESS_STATION_PRO_NAME,
             access_station_pro_serial,
@@ -694,7 +694,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, floor_id = await step(
-            "Creating building",
+            "Creating Building",
             client.create_building,
             ESS_BUILDING_NAME,
             ESS_ADDRESS,
@@ -707,7 +707,7 @@ class CommissionView(ToolView):
 
         if camera_id and site_id:
             ok, _ = await step(
-                "Configuring camera",
+                "Configuring Camera",
                 client.configure_camera,
                 camera_id,
                 ESS_CAMERA_NAME,
@@ -717,21 +717,21 @@ class CommissionView(ToolView):
             track(ok)
 
         ok, _ = await step(
-            "Enabling org features",
+            "Enabling Org Features",
             client.enable_org_features,
             self.face_analytics_switch.value,
         )
         track(ok)
 
         ok, _ = await step(
-            "Enabling org face unlock",
+            "Enabling Org Face-Unlock",
             client.enable_org_face_unlock,
         )
         track(ok)
 
         if self.face_analytics_switch.value and camera_id:
             ok, _ = await step(
-                "Enabling camera analytics",
+                "Enabling Camera Analytics",
                 client.enable_camera_analytics,
                 [camera_id],
             )
@@ -739,7 +739,7 @@ class CommissionView(ToolView):
 
         if site_id:
             ok, alarm_response_id = await step(
-                "Creating alarm site",
+                "Creating Alarm Site",
                 client.create_alarm_site,
                 "Verkada",
                 ESS_ALARM_ADDRESS,
@@ -757,7 +757,7 @@ class CommissionView(ToolView):
                 track(ok)
 
             ok, _ = await step(
-                "Creating guest site",
+                "Creating Guest Site",
                 client.create_guest_site,
                 ESS_GUEST_ADDRESS,
                 site_id,
@@ -766,14 +766,14 @@ class CommissionView(ToolView):
 
         if panel_id and site_id:
             ok, alarm_system_id = await step(
-                "Creating alarm system",
+                "Creating Alarm System",
                 client.create_alarm_system,
                 site_id,
             )
             track(ok)
             if alarm_system_id:
                 ok, _ = await step(
-                    "Configuring alarm panel",
+                    "Configuring Alarm Panel",
                     client.configure_alarm_panel,
                     panel_id,
                     ESS_PANEL_NAME,
@@ -795,7 +795,7 @@ class CommissionView(ToolView):
             door_id = None
             if access_station_pro_controller_id:
                 ok, door_id = await step(
-                    "Creating door",
+                    "Creating Door",
                     client.create_access_station_pro_door,
                     access_station_pro_controller_id,
                     ESS_ACCESS_STATION_PRO_DOOR_NAME,
@@ -805,7 +805,7 @@ class CommissionView(ToolView):
 
             if door_id and access_station_pro_controller_id:
                 ok, _ = await step(
-                    "Enabling Face Unlock on Door",
+                    "Enabling Face-Unlock on Door",
                     client.enable_door_face_unlock,
                     door_id,
                 )
@@ -814,11 +814,11 @@ class CommissionView(ToolView):
     async def _run_acsl_flow(self, step, track, page, client) -> None:
         access_station_pro_serial = self._device_serial("Access Station Pro")
 
-        ok, site_id = await step("Creating site", client.create_site, ACSL_SITE_NAME)
+        ok, site_id = await step("Creating Site", client.create_site, ACSL_SITE_NAME)
         track(ok)
 
         ok, access_station_pro_id = await step(
-            f"Adding access station pro ({access_station_pro_serial})",
+            f"Adding Access Station Pro ({access_station_pro_serial})",
             client.add_device,
             ACSL_ACCESS_STATION_PRO_NAME,
             access_station_pro_serial,
@@ -826,7 +826,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, floor_id = await step(
-            "Creating building",
+            "Creating Building",
             client.create_building,
             ACSL_BUILDING_NAME,
             ACSL_ADDRESS,
@@ -835,7 +835,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, _ = await step(
-            "Enabling org face unlock",
+            "Enabling Org Face-Unlock",
             client.enable_org_face_unlock,
         )
         track(ok)
@@ -853,7 +853,7 @@ class CommissionView(ToolView):
             door_id = None
             if access_station_pro_controller_id:
                 ok, door_id = await step(
-                    "Creating door",
+                    "Creating Door",
                     client.create_access_station_pro_door,
                     access_station_pro_controller_id,
                     ACSL_ACCESS_STATION_PRO_DOOR_NAME,
@@ -863,7 +863,7 @@ class CommissionView(ToolView):
 
             if door_id and access_station_pro_controller_id:
                 ok, _ = await step(
-                    "Enabling Face Unlock on Door",
+                    "Enabling Face-Unlock on Door",
                     client.enable_door_face_unlock,
                     door_id,
                 )
@@ -905,11 +905,11 @@ class CommissionView(ToolView):
         controller_serial = self._device_serial("Access Controller")
         license_plate = self._device_serial("License Plate")
 
-        ok, site_id = await step("Creating site", client.create_site, VSS_SITE_NAME)
+        ok, site_id = await step("Creating Site", client.create_site, VSS_SITE_NAME)
         track(ok)
 
         ok, bullet_id = await step(
-            f"Adding camera ({bullet_serial})",
+            f"Adding Camera ({bullet_serial})",
             client.add_device,
             VSS_BULLET_NAME,
             bullet_serial,
@@ -925,7 +925,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, connector_id = await step(
-            f"Adding command connector ({connector_serial})",
+            f"Adding Command Connector ({connector_serial})",
             client.add_device,
             VSS_CONNECTOR_NAME,
             connector_serial,
@@ -933,7 +933,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, controller_id = await step(
-            f"Adding access controller ({controller_serial})",
+            f"Adding Access Controller ({controller_serial})",
             client.add_device,
             VSS_CONTROLLER_NAME,
             controller_serial,
@@ -941,7 +941,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, floor_id = await step(
-            "Creating building",
+            "Creating Building",
             client.create_building,
             VSS_BUILDING_NAME,
             VSS_ADDRESS,
@@ -954,7 +954,7 @@ class CommissionView(ToolView):
 
         if bullet_id and site_id:
             ok, _ = await step(
-                "Configuring bullet",
+                "Configuring Bullet",
                 client.configure_camera,
                 bullet_id,
                 VSS_BULLET_NAME,
@@ -976,7 +976,7 @@ class CommissionView(ToolView):
 
         if connector_id and site_id:
             ok, _ = await step(
-                "Configuring connector",
+                "Configuring Connector",
                 client.configure_connector,
                 connector_id,
                 VSS_CONNECTOR_NAME,
@@ -988,7 +988,7 @@ class CommissionView(ToolView):
         door_id = None
         if controller_id and site_id:
             ok, access_controller_id = await step(
-                "Configuring access controller",
+                "Configuring Access Controller",
                 client.configure_access_controller,
                 controller_id,
                 VSS_CONTROLLER_NAME,
@@ -1001,7 +1001,7 @@ class CommissionView(ToolView):
                 # LPR door: created with the LPR config up front (v2 has no
                 # retroactive flag-flip), then the camera is paired below.
                 ok, door_id = await step(
-                    "Creating door",
+                    "Creating Door",
                     functools.partial(
                         client.create_door,
                         access_controller_id,
@@ -1013,7 +1013,7 @@ class CommissionView(ToolView):
                 track(ok)
 
         ok, _ = await step(
-            "Enabling org features",
+            "Enabling Org Features",
             client.enable_org_features,
             self.face_analytics_switch.value,
         )
@@ -1021,7 +1021,7 @@ class CommissionView(ToolView):
 
         if self.face_analytics_switch.value and ptz_id:
             ok, _ = await step(
-                "Enabling camera analytics",
+                "Enabling Camera Analytics",
                 client.enable_camera_analytics,
                 [ptz_id],
             )
@@ -1045,7 +1045,7 @@ class CommissionView(ToolView):
 
         if door_id and bullet_id:
             ok, _ = await step(
-                "Linking LPR camera to door",
+                "Linking LPR Camera to Door",
                 client.pair_lpr_camera,
                 door_id,
                 bullet_id,
@@ -1092,12 +1092,12 @@ class CommissionView(ToolView):
         bullet_serial = self._device_serial("Bullet")
 
         ok, site_id = await step(
-            "Creating site", client.create_site, VSS_EXAM_SITE_NAME
+            "Creating Site", client.create_site, VSS_EXAM_SITE_NAME
         )
         track(ok)
 
         ok, dome_id = await step(
-            f"Adding dome ({dome_serial})",
+            f"Adding Dome ({dome_serial})",
             client.add_device,
             VSS_EXAM_DOME_NAME,
             dome_serial,
@@ -1105,7 +1105,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, bullet_id = await step(
-            f"Adding bullet ({bullet_serial})",
+            f"Adding Bullet ({bullet_serial})",
             client.add_device,
             VSS_EXAM_BULLET_NAME,
             bullet_serial,
@@ -1113,7 +1113,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, fisheye_id = await step(
-            f"Adding fisheye ({fisheye_serial})",
+            f"Adding Fisheye ({fisheye_serial})",
             client.add_device,
             VSS_EXAM_FISHEYE_NAME,
             fisheye_serial,
@@ -1137,7 +1137,7 @@ class CommissionView(ToolView):
                 track(ok)
 
         ok, _ = await step(
-            "Enabling org features",
+            "Enabling Org Features",
             client.enable_org_features,
             self.face_analytics_switch.value,
         )
@@ -1146,7 +1146,7 @@ class CommissionView(ToolView):
         if self.face_analytics_switch.value and (dome_id or fisheye_id):
             cams = [c for c in (dome_id, fisheye_id) if c]
             ok, _ = await step(
-                "Enabling camera analytics",
+                "Enabling Camera Analytics",
                 client.enable_camera_analytics,
                 cams,
             )
@@ -1166,11 +1166,11 @@ class CommissionView(ToolView):
         panel_serial = self._device_serial("Alarm Panel")
         keypad_serial = self._device_serial("Keypad")
 
-        ok, site_id = await step("Creating site", client.create_site, AS_SITE_NAME)
+        ok, site_id = await step("Creating Site", client.create_site, AS_SITE_NAME)
         track(ok)
 
         ok, dome_id = await step(
-            f"Adding camera ({dome_serial})",
+            f"Adding Camera ({dome_serial})",
             client.add_device,
             AS_DOME_NAME,
             dome_serial,
@@ -1178,7 +1178,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, controller_id = await step(
-            f"Adding access controller ({controller_serial})",
+            f"Adding Access Controller ({controller_serial})",
             client.add_device,
             AS_CONTROLLER_NAME,
             controller_serial,
@@ -1186,7 +1186,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, panel_id = await step(
-            f"Adding alarm panel ({panel_serial})",
+            f"Adding Alarm Panel ({panel_serial})",
             client.add_device,
             AS_PANEL_NAME,
             panel_serial,
@@ -1194,7 +1194,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, keypad_id = await step(
-            f"Adding alarm keypad ({keypad_serial})",
+            f"Adding Alarm Keypad ({keypad_serial})",
             client.add_device,
             AS_KEYPAD_NAME,
             keypad_serial,
@@ -1202,7 +1202,7 @@ class CommissionView(ToolView):
         track(ok)
 
         ok, floor_id = await step(
-            "Creating building",
+            "Creating Building",
             client.create_building,
             AS_BUILDING_NAME,
             AS_ADDRESS,
@@ -1214,9 +1214,10 @@ class CommissionView(ToolView):
         await asyncio.sleep(BUILDING_PROVISION_SECONDS)
 
         door_id = None
+        access_controller_id = None
         if controller_id and site_id:
             ok, access_controller_id = await step(
-                "Configuring access controller",
+                "Configuring Access Controller",
                 client.configure_access_controller,
                 controller_id,
                 AS_CONTROLLER_NAME,
@@ -1227,7 +1228,7 @@ class CommissionView(ToolView):
             track(ok)
             if access_controller_id:
                 ok, door_id = await step(
-                    "Creating door",
+                    "Creating Door",
                     client.create_door,
                     access_controller_id,
                     AS_DOOR_NAME,
@@ -1246,9 +1247,23 @@ class CommissionView(ToolView):
             )
             track(ok)
 
+            ok, _ = await step(
+                "Deleting Door",
+                client.delete_door,
+                door_id,
+            )
+            track(ok)
+
+            ok, _ = await step(
+                "Deleting Access Controller",
+                client.delete_access_controller,
+                access_controller_id
+            )
+            track(ok)
+
         if dome_id and site_id:
             ok, _ = await step(
-                "Configuring camera",
+                "Configuring Camera",
                 client.configure_camera,
                 dome_id,
                 AS_DOME_NAME,
@@ -1258,7 +1273,7 @@ class CommissionView(ToolView):
             track(ok)
 
         ok, _ = await step(
-            "Enabling org features",
+            "Enabling Org Features",
             client.enable_org_features,
             self.face_analytics_switch.value,
         )
@@ -1266,7 +1281,7 @@ class CommissionView(ToolView):
 
         if self.face_analytics_switch.value and dome_id:
             ok, _ = await step(
-                "Enabling camera analytics",
+                "Enabling Camera Analytics",
                 client.enable_camera_analytics,
                 [dome_id],
             )
@@ -1274,7 +1289,7 @@ class CommissionView(ToolView):
 
         if site_id:
             ok, alarm_response_id = await step(
-                "Creating alarm site",
+                "Creating Alarm Site",
                 client.create_alarm_site,
                 "Verkada",
                 AS_ALARM_ADDRESS,
@@ -1295,7 +1310,7 @@ class CommissionView(ToolView):
             # Alarm panels and keypads attach to an alarm system, which
             # must be created first. The keypad step needs the system id.
             ok, alarm_system_id = await step(
-                "Creating alarm system",
+                "Creating Alarm System",
                 client.create_alarm_system,
                 site_id,
             )
@@ -1303,7 +1318,7 @@ class CommissionView(ToolView):
 
             if alarm_system_id:
                 ok, _ = await step(
-                    "Configuring alarm panel",
+                    "Configuring Alarm Panel",
                     client.configure_alarm_panel,
                     panel_id,
                     AS_PANEL_NAME,
@@ -1312,7 +1327,7 @@ class CommissionView(ToolView):
                 track(ok)
 
                 ok, _ = await step(
-                    "Configuring alarm keypad",
+                    "Configuring Alarm Keypad",
                     client.configure_keypad,
                     keypad_id,
                     AS_KEYPAD_NAME,
@@ -1322,7 +1337,7 @@ class CommissionView(ToolView):
                 track(ok)
 
                 ok, _ = await step(
-                    "Setting up general keycode",
+                    "Setting up General Keycode",
                     client.set_alarm_keycode,
                     alarm_system_id,
                 )
