@@ -307,7 +307,7 @@ class VerkadaInternalAPIClient:
         Shared body for every door-creating method. Returns the new door_id.
 
         The door endpoints differ only in config profile and doorType (a
-        standard door hangs off an access controller; a Face Station Pro
+        standard door hangs off an access controller; a Access Station Pro
         door is the station acting as its own controller).
         """
         log_req = (
@@ -2093,7 +2093,7 @@ class VerkadaInternalAPIClient:
         Called after configure_access_station_pro(), which returns the
         access_controller_id this method needs. The station is its own
         controller, so the door is created with doorType "moody_as_acu"
-        and the Face Station Pro config profile (which already carries
+        and the Access Station Pro config profile (which already carries
         face-unlock-enabled).
         """
         return self._create_door(
