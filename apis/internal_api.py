@@ -7,7 +7,9 @@ from apis.endpoints import (
     _DOOR_CREATE_CONFIGS,
     _DOOR_CREATE_IOS,
     _DOOR_EVENT,
+    _FACE_STATION_PRO_DOOR_CREATE_CONFIGS,
     _LPR_DOOR_CREATE_CONFIGS,
+    _MFA_DOOR_EVENT,
     Address,
     AlarmAddress,
     GuestAddress,
@@ -264,6 +266,85 @@ class VerkadaInternalAPIClient:
             error_context=f"Failed to enable {feature_label}",
             log_request=f'{{"cameraIds": {camera_ids}}}',
         )
+
+    def _set_door_config(
+        self,
+        endpoint_key: str,
+        door_id: str,
+        param_name: str,
+        feature_label: str,
+    ) -> None:
+        """
+        Grant a single boolean door config param (POST door/config/set).
+
+        Backs the face-unlock and MFA toggles: those endpoint keys are the
+        same call with a different paramName, so callers name the key and
+        the param and this carries the payload shape.
+        """
+        self._request(
+            endpoint_key,
+            json={
+                "doorId": door_id,
+                "action": "grant",
+                "paramName": param_name,
+                "paramValue": True,
+            },
+            error_context=f"Failed to enable {feature_label} on door '{door_id}'",
+            log_request=f'{{"doorId": "{door_id}", "paramName": "{param_name}"}}',
+        )
+
+    def _create_door(
+        self,
+        endpoint_key: str,
+        *,
+        access_controller_id: str,
+        door_name: str,
+        floor_id: str,
+        configs: list[dict[str, Any]],
+        door_type: str,
+    ) -> str:
+        """
+        Shared body for every door-creating method. Returns the new door_id.
+
+        The door endpoints differ only in config profile and doorType (a
+        standard door hangs off an access controller; a Face Station Pro
+        door is the station acting as its own controller).
+        """
+        log_req = (
+            f'{{"accessControllerId": "{access_controller_id}", "name": "{door_name}"}}'
+        )
+        data, status = self._request(
+            endpoint_key,
+            json={
+                "accessControllerId": access_controller_id,
+                "configs": configs,
+                "deviceIos": _DOOR_CREATE_IOS,
+                "doorType": door_type,
+                "floorId": floor_id,
+                "name": door_name,
+            },
+            error_context=f"Failed to create door '{door_name}'",
+            log_request=log_req,
+            auto_log=False,
+        )
+
+        doors = data.get("doors") or []
+        if not doors:
+            raise ConnectionError(
+                f"Failed to create door '{door_name}': no doors returned in response."
+            )
+        door_id = doors[0].get("doorId")
+        if not door_id:
+            raise ConnectionError(
+                f"Failed to create door '{door_name}': no doorId in response."
+            )
+        self._log(
+            endpoint_key,
+            status,
+            log_request=f'{{"name": "{door_name}"}}',
+            log_response=f'{{"doorId": "{door_id}"}}',
+        )
+        return door_id
 
     def _fetch_list(
         self,
@@ -1004,6 +1085,25 @@ class VerkadaInternalAPIClient:
             log_request=f'{{"params": "{len(flags)} flags"}}',
         )
 
+    def enable_org_face_unlock(self) -> None:
+        """
+        Allow face unlock across the organization.
+
+        Org-level prerequisite for the per-door toggle — a door's
+        face-unlock-enabled config (enable_door_face_unlock) only takes
+        effect once the org flag is set.
+        """
+        self._request(
+            "org.allow_face_unlock",
+            json={
+                "organizationId": self.org_id,
+                "paramName": "face-unlock-enabled",
+                "paramValue": True,
+            },
+            error_context="Failed to allow face unlock for the organization",
+            log_request='{"paramName": "face-unlock-enabled"}',
+        )
+
     # ------------------------------------------------------------------
     # Sites
     # ------------------------------------------------------------------
@@ -1293,6 +1393,54 @@ class VerkadaInternalAPIClient:
             },
         )
 
+    def configure_access_station_pro(
+        self,
+        device_id: str,
+        station_name: str,
+        site_id: str,
+        address: Address,
+    ) -> str:
+        """
+        Sets up a newly commissioned Access Station Pro. Returns the
+        accessControllerId used to bind a door via
+        create_access_station_pro_door().
+
+        The station doubles as its own access controller, so the setup
+        response carries both a deviceId and an accessControllerId — doors
+        bind to the latter.
+        """
+        addr = address if isinstance(address, Address) else Address(*address)
+        log_req = f'{{"deviceId": "{device_id}"}}'
+        data, status = self._request(
+            "face_station_pro.create",
+            json={
+                "deviceId": device_id,
+                "name": station_name,
+                "siteId": site_id,
+                "location": {
+                    "label": addr.label,
+                    "lat": addr.latitude,
+                    "lon": addr.longitude,
+                },
+            },
+            error_context=f"Failed to configure Access Station Pro '{station_name}'",
+            log_request=log_req,
+            auto_log=False,
+        )
+        controller_id = data.get("accessControllerId")
+        if not controller_id:
+            raise ConnectionError(
+                f"Failed to configure Access Station Pro '{station_name}': "
+                "no accessControllerId returned."
+            )
+        self._log(
+            "face_station_pro.create",
+            status,
+            log_request=log_req,
+            log_response=f'{{"accessControllerId": "{controller_id}"}}',
+        )
+        return controller_id
+
     def delete_access_station_pro(self, device_id: str) -> None:
         self._delete(
             "face_station_pro.delete",
@@ -1405,6 +1553,40 @@ class VerkadaInternalAPIClient:
             "access_level.delete",
             path_params={"schedule_id": schedule_id},
             oid=schedule_id,
+        )
+
+    def create_mfa_schedule(self, door_id: str, schedule_name: str) -> None:
+        """
+        Creates a 24/7 door schedule that holds the door in two-factor
+        mode (doorLockState ACCESS_CONTROL_2FA).
+
+        The weekly event grid comes from the shared _MFA_DOOR_EVENT
+        default. Pair with the per-door MFA toggles: this schedule sets
+        *when* two-factor applies, while enable_door_mfa_* sets *which*
+        credential combination satisfies it.
+
+        Shares the upsert-style PUT that delete_schedule uses — schedules
+        are keyed by scheduleId, so an object sent without one is created
+        rather than replacing the org's existing schedules.
+        """
+        self._request(
+            "schedule.create.mfa",
+            path_params={"org_id": self.org_id},
+            json={
+                "sitesEnabled": True,
+                "schedules": [
+                    {
+                        "doors": [door_id],
+                        "events": _MFA_DOOR_EVENT,
+                        "name": schedule_name,
+                        "type": "DOOR",
+                        "priority": "SCHEDULE",
+                        "defaultDoorLockState": "ACCESS_CONTROL",
+                    }
+                ],
+            },
+            error_context=f"Failed to create MFA schedule '{schedule_name}'",
+            log_request=f'{{"name": "{schedule_name}", "doorId": "{door_id}"}}',
         )
 
     def get_schedule(self) -> list[dict[str, Any]]:
@@ -1573,6 +1755,53 @@ class VerkadaInternalAPIClient:
     # Security entity groups, access users, footage archives,
     # investigation incidents, and alert rules
     # ------------------------------------------------------------------
+
+    def create_group(self, group_name: str) -> str:
+        """
+        Creates a security entity group (a Command group). Returns the new
+        group_id.
+
+        Distinct from create_access_group: access groups gate door access,
+        Command groups gate Command permissions.
+        """
+        log_req = f'{{"name": "{group_name}"}}'
+        data, status = self._request(
+            "group.create",
+            json={"organizationId": self.org_id, "name": group_name},
+            error_context=f"Failed to create group '{group_name}'",
+            log_request=log_req,
+            auto_log=False,
+        )
+        # The new group comes back under securityEntityGroup — the list
+        # schema this endpoint shares with group.list, collapsed to the one
+        # created group. Tolerate a bare object in case it isn't wrapped.
+        entity = data.get("securityEntityGroup") or {}
+        if isinstance(entity, list):
+            entity = entity[0] if entity else {}
+        group_id = entity.get("entityGroupId") or data.get("entityGroupId")
+        if not group_id:
+            raise ConnectionError(
+                f"Failed to create group '{group_name}': no entityGroupId in response."
+            )
+        self._log(
+            "group.create",
+            status,
+            log_request=log_req,
+            log_response=f'{{"entityGroupId": "{group_id}"}}',
+        )
+        return group_id
+
+    def add_users_to_group(self, user_ids: list[str], group_id: str) -> None:
+        """Adds one or more users to a security entity group."""
+        self._request(
+            "group.add_members",
+            json={
+                "securityEntityGroupId": group_id,
+                "securityEntityIds": user_ids,
+            },
+            error_context=f"Failed to add users to group '{group_id}'",
+            log_request=f'{{"groupId": "{group_id}", "userIds": {user_ids}}}',
+        )
 
     def get_group(self) -> list[dict[str, Any]]:
         """List security entity groups the user can delete.
@@ -1843,39 +2072,38 @@ class VerkadaInternalAPIClient:
                 endpoint, so LPR doors must opt in at creation time; pair
                 the camera afterward with pair_lpr_camera().
         """
-        configs = _LPR_DOOR_CREATE_CONFIGS if lpr else _DOOR_CREATE_CONFIGS
-        data, status = self._request(
+        return self._create_door(
             "door.create",
-            json={
-                "accessControllerId": access_controller_id,
-                "configs": configs,
-                "deviceIos": _DOOR_CREATE_IOS,
-                "doorType": "standard",
-                "floorId": floor_id,
-                "name": door_name,
-            },
-            error_context=f"Failed to create door '{door_name}'",
-            log_request=f'{{"accessControllerId": "{access_controller_id}", "name": "{door_name}"}}',
-            auto_log=False,
+            access_controller_id=access_controller_id,
+            door_name=door_name,
+            floor_id=floor_id,
+            configs=_LPR_DOOR_CREATE_CONFIGS if lpr else _DOOR_CREATE_CONFIGS,
+            door_type="standard",
         )
 
-        doors = data.get("doors") or []
-        if not doors:
-            raise ConnectionError(
-                f"Failed to create door '{door_name}': no doors returned in response."
-            )
-        door_id = doors[0].get("doorId")
-        if not door_id:
-            raise ConnectionError(
-                f"Failed to create door '{door_name}': no doorId in response."
-            )
-        self._log(
-            "door.create",
-            status,
-            log_request=f'{{"name": "{door_name}"}}',
-            log_response=f'{{"doorId": "{door_id}"}}',
+    def create_access_station_pro_door(
+        self,
+        access_controller_id: str,
+        door_name: str,
+        floor_id: str,
+    ) -> str:
+        """
+        Creates the door served by an Access Station Pro. Returns door_id.
+
+        Called after configure_access_station_pro(), which returns the
+        access_controller_id this method needs. The station is its own
+        controller, so the door is created with doorType "moody_as_acu"
+        and the Face Station Pro config profile (which already carries
+        face-unlock-enabled).
+        """
+        return self._create_door(
+            "face_station_pro.door.create",
+            access_controller_id=access_controller_id,
+            door_name=door_name,
+            floor_id=floor_id,
+            configs=_FACE_STATION_PRO_DOOR_CREATE_CONFIGS,
+            door_type="moody_as_acu",
         )
-        return door_id
 
     def get_door(self) -> list[dict[str, Any]]:
         return self._fetch_list(
@@ -1916,6 +2144,52 @@ class VerkadaInternalAPIClient:
             },
             error_context=f"Failed to pair LPR camera with door '{door_id}'",
             log_request=f'{{"lprCameraId": "{lpr_camera_id}"}}',
+        )
+
+    def enable_door_face_unlock(self, door_id: str) -> None:
+        """
+        Enable face unlock on a door.
+
+        Requires the org flag (enable_org_face_unlock) to already be set.
+        Doors created by create_access_station_pro_door() ship with this
+        config, so it is only needed for doors created another way.
+        """
+        self._set_door_config(
+            "door.enable_face_unlock",
+            door_id,
+            "face-unlock-enabled",
+            "face unlock",
+        )
+
+    # Each MFA mode is its own door config param — the combination named
+    # by the method is what the reader will accept as two factors. They
+    # are independent flags, so more than one can be enabled on a door.
+
+    def enable_door_mfa_card_code(self, door_id: str) -> None:
+        """Require card + PIN code at the door."""
+        self._set_door_config(
+            "door.mfa.card-code",
+            door_id,
+            "mfa-card-code-enabled",
+            "card + code MFA",
+        )
+
+    def enable_door_mfa_face_card(self, door_id: str) -> None:
+        """Require face + card at the door."""
+        self._set_door_config(
+            "door.mfa.face-card",
+            door_id,
+            "mfa-face-card-enabled",
+            "face + card MFA",
+        )
+
+    def enable_door_mfa_face_code(self, door_id: str) -> None:
+        """Require face + PIN code at the door."""
+        self._set_door_config(
+            "door.mfa.face-code",
+            door_id,
+            "mfa-face-code-enabled",
+            "face + code MFA",
         )
 
     def get_visitor_access_template(self) -> list[dict[str, Any]]:

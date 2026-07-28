@@ -59,17 +59,22 @@ Other reserved methods: `is_org_empty` (~696), `get_device_count` (~709),
 `get_alarm_device` (~2737), `delete_alarm_device` (~2800),
 `create_mailroom_site` (~2861).
 
-### `apis/endpoints.py` — 14 currently-unused endpoint keys
+### `apis/endpoints.py` — 10 currently-unused endpoint keys
 
 Never passed to `resolve()` yet; kept as the registry backing the reserved
 methods above: `permissions.access_system_admin.disable`,
 `permissions.access_user_admin.disable`, `org.device_information.list`,
-`org.allow_face_unlock`, `user.hard_delete`, `user.add_license_plate`,
-`face_station_pro.create`, `face_station_pro.set_door_controller`,
-`floorplan.delete`, `scenario.create`, `schedule.create`, `guest_type.create`,
-`guest_type.list`, `guest_type.delete`. The module constant
-`_FACE_STATION_PRO_DOOR_CREATE_CONFIGS` (~101–132) backs the two
-`face_station_pro.*` keys.
+`user.hard_delete`, `user.add_license_plate`, `floorplan.delete`,
+`scenario.create`, `guest_type.create`, `guest_type.list`,
+`guest_type.delete`.
+
+Four keys from the original list are now wired up: `org.allow_face_unlock`,
+`face_station_pro.create`, `face_station_pro.door.create` (renamed from
+`face_station_pro.set_door_controller`), and `schedule.create.mfa` (renamed
+from `schedule.create`) — see the Face Station Pro / MFA methods in
+`internal_api.py`. `_FACE_STATION_PRO_DOOR_CREATE_CONFIGS` (~101–132) is
+consumed by `create_access_station_pro_door`, and `_MFA_DOOR_EVENT` by
+`create_mfa_schedule`.
 
 ### `apis/external_api.py`
 
