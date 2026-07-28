@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 # App Info
-APP_VERSION = "3.3"
+APP_VERSION = "3.4"
 GITHUB_REPO = "not-mehul/vCommander"
 
 _INTERNAL_MARKER = Path(__file__).parent / "assets" / "kits.internal.csv"
