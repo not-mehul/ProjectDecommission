@@ -903,7 +903,7 @@ class CommissionView(ToolView):
         ptz_serial = self._device_serial("PTZ")
         connector_serial = self._device_serial("Command Connector")
         controller_serial = self._device_serial("Access Controller")
-        license_plate = self._device_serial("Instructor License Plate")
+        license_plate = self._device_serial("License Plate")
 
         ok, site_id = await step("Creating Site", client.create_site, VSS_SITE_NAME)
         track(ok)
