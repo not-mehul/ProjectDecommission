@@ -329,11 +329,12 @@ class VerkadaExternalAPIClient:
             guest = x.get("guest", {})
             full_name = guest.get("full_name", "")
             email = guest.get("email")
+            image_url = guest.get("image_url")
             if " " in full_name:
                 first, last = full_name.rsplit(" ", 1)
             else:
                 first = last = full_name
-            return {"first_name": first, "last_name": last, "email": email}
+            return {"first_name": first, "last_name": last, "email": email, "image_url": image_url}
 
         data = self._request(
             "GET",
