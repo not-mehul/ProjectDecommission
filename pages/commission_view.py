@@ -28,6 +28,8 @@ from constants import (
     AS_KEYPAD_NAME,
     AS_PANEL_NAME,
     AS_SITE_NAME,
+    AS_STROBE_OUTPUT_NAME,
+    AS_STROBE_OUTPUT_PIN,
     ACSL_MFA_DOOR_SCHEDULE_NAME,
     ACSL_ACCESS_STATION_PRO_DOOR_NAME,
     ACSL_ACCESS_STATION_PRO_NAME,
@@ -1335,6 +1337,15 @@ class CommissionView(ToolView):
                     keypad_serial,
                 )
                 track(ok)
+
+                ok, _ = await step(
+                    "Configuring Wired Strobe",
+                    client.create_wired_output,
+                    AS_STROBE_OUTPUT_NAME,
+                    alarm_system_id,
+                    panel_id,
+                    AS_STROBE_OUTPUT_PIN
+                )
 
                 ok, _ = await step(
                     "Setting up General Keycode",

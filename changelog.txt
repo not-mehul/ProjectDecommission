@@ -42,6 +42,8 @@ v3.4
 
 v3.5
 - Updated ACS Lab to create 'HQ' instead of 'Trainer-HQ'
+- Updated AF64 Commissioning to disable DPI during setup
+- Added Strobe Light Creation on the Alarm Panel Pin 1 during AS Commissioning
 
 --- NEWS ---
 - When the Alarm is triggered, you will not be able to delete an Alarm Site. It needs to be resolved to delete an alarm site.

@@ -101,7 +101,7 @@ _LPR_DOOR_CREATE_CONFIGS = [
 _ACCESS_STATION_PRO_DOOR_CREATE_CONFIGS = [
     {"paramName": "default-unlock-time", "paramValue": "10"},
     {"paramName": "assa-extended-unlock-time", "paramValue": "20"},
-    {"paramName": "has-door-sensor", "paramValue": "True"},
+    {"paramName": "has-door-sensor", "paramValue": "False"},
     {"paramName": "ignore-dpi-relock", "paramValue": "False"},
     {"paramName": "passthrough-dpi-enabled", "paramValue": "False"},
     {"paramName": "dho-enabled", "paramValue": "False"},
@@ -128,7 +128,7 @@ _ACCESS_STATION_PRO_DOOR_CREATE_CONFIGS = [
     {"paramName": "c3po-in1-type", "paramValue": "NONE"},
     {"paramName": "c3po-in2-type", "paramValue": "NONE"},
     {"paramName": "replace-ios-with-security-relay", "paramValue": False},
-    {"paramName": "face-unlock-enabled", "paramValue": "true"},
+    {"paramName": "face-unlock-enabled", "paramValue": "True"},
 ]
 
 _DOOR_CREATE_CONFIGS = [
@@ -1577,6 +1577,67 @@ ENDPOINTS: dict[str, Endpoint] = {
             ],
         },
         response={},
+    ),
+    "access_card.list": Endpoint(
+        method="POST",
+        subdomain=api_region,
+        path="user/access_card/get",
+        payload={
+            "organizationId": "<org_id>",
+            "userId": "<user_id>"
+        },
+        response={
+            "accessCards": [
+                {
+                    "activationState": "active",
+                    "active": True,
+                    "autoExpiredTimestamp": None,
+                    "cacheId": "<access_card_cache_id>",
+                    "cardId": "<access_card_id>",
+                    "cardParams": {
+                        "cardNumber": 12345,
+                        "facilityCode": 123
+                    },
+                    "cardType": "<card_type>",
+                    "expirationPeriodBegin": 1786554036,
+                    "lastUsed": "2026-08-12T18:53:43.530118",
+                    "lastUsedEvent": "<last_event_id>",
+                    "modified": 1786554036,
+                    "organizationId": "<org_id>",
+                    "scimManaged": False,
+                    "systemManaged": None,
+                    "systemManagedId": None,
+                    "userId": "<user_id>"
+                }
+            ]
+        }
+    ),
+    "access_card.delete": Endpoint(
+        method="POST",
+        subdomain=api_region,
+        path="user/access_card/delete",
+        payload={
+            "activationState": "active",
+            "active": True,
+            "autoExpiredTimestamp": None,
+            "cacheId": "<access_card_cache_id>",
+            "cardId": "<access_card_id>",
+            "cardParams": {
+                "cardNumber": 12345,
+                "facilityCode": 123
+            },
+            "cardType": "<card_type>",
+            "expirationPeriodBegin": 1786554036,
+            "lastUsed": "2026-08-12T18:53:43.530118",
+            "lastUsedEvent": "<last_event_id>",
+            "modified": 1786554036,
+            "organizationId": "<org_id>",
+            "scimManaged": False,
+            "systemManaged": None,
+            "systemManagedId": None,
+            "userId": "<user_id>"
+        },
+        response={}
     ),
     "access_group.create": Endpoint(
         method="POST",
